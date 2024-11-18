@@ -17,10 +17,17 @@ rHitman.NotifyType = {
     HINT = 2
 }
 
--- Format money value
-function rHitman.Util.formatMoney(amount)
-    return DarkRP.formatMoney(amount)
+-- Format money with the configured currency symbol
+function rHitman.formatMoney(amount)
+    if not amount then return rHitman.Config.CurrencySymbol .. "0" end
+    
+    -- Format the number with commas
+    local formatted = string.gsub(tostring(math.floor(amount)), "^(-?%d+)(%d%d%d)", '%1,%2')
+    
+    -- Add currency symbol
+    return rHitman.Config.CurrencySymbol .. formatted
 end
+
 
 -- Format time duration (e.g. "2h 30m" or "45m 30s")
 function rHitman.Util.formatDuration(seconds)

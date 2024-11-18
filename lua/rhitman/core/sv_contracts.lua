@@ -16,13 +16,32 @@ local function validateContract(contract)
     if not contract then return false, "Invalid contract data" end
     if not contract.target then return false, "No target specified" end
     if not contract.reward then return false, "No reward specified" end
-    if contract.reward < rHitman.Config.MinimumReward then return false, "Reward too low" end
-    if contract.reward > rHitman.Config.MaximumReward then return false, "Reward too high" end
+    if contract.reward < rHitman.Config.MinimumHitPrice then return false, "Reward too low" end
+    if contract.reward > rHitman.Config.MaximumHitPrice then return false, "Reward too high" end
     return true
 end
 
+-- Helper function to count active contracts for a player
+local function countActiveContracts(steamID64, asHitman)
+    local count = 0
+    for _, contract in pairs(rHitman.Contracts) do
+        if contract.status == "active" then
+            if asHitman then
+                if contract.hitman == steamID64 then
+                    count = count + 1
+                end
+            else
+                if contract.contractor == steamID64 then
+                    count = count + 1
+                end
+            end
+        end
+    end
+    return count
+end
+
 -- Create a new contract
-function rHitman:CreateContract(contractor, target, reward, duration)
+local function CreateContract(contractor, target, reward, duration)
     if not IsValid(contractor) or not IsValid(target) then
         return false, "Invalid contractor or target"
     end
@@ -30,6 +49,12 @@ function rHitman:CreateContract(contractor, target, reward, duration)
     -- Prevent self-contracts
     if contractor:SteamID64() == target:SteamID64() then
         return false, "Cannot place contract on yourself"
+    end
+    
+    -- Check contract limit for contractor
+    local contractorActiveContracts = countActiveContracts(contractor:SteamID64(), false)
+    if contractorActiveContracts >= rHitman.Config.MaxActiveContractsPerContractor then
+        return false, "You have reached your maximum active contracts limit"
     end
     
     -- Create contract data
@@ -52,14 +77,12 @@ function rHitman:CreateContract(contractor, target, reward, duration)
     -- Store contract
     rHitman.Contracts[contract.id] = contract
     
-    -- Notify relevant players
-    DarkRP.notify(contractor, 0, 4, "Contract placed successfully!")
-    
-    -- Sync to clients
-    rHitman:SyncContracts()
-    
+    -- Return success and contract ID
     return true, contract.id
 end
+
+-- Make the function available in the rHitman table
+rHitman.CreateContract = CreateContract
 
 -- Accept a contract
 function rHitman:AcceptContract(contractId, hitman)
@@ -83,6 +106,13 @@ function rHitman:AcceptContract(contractId, hitman)
     if hitman:SteamID64() == contract.target then
         print("[rHitman] Self-contract attempt:", contractId)
         return false, "Cannot accept contract on yourself"
+    end
+    
+    -- Check contract limit for hitman
+    local hitmanActiveContracts = countActiveContracts(hitman:SteamID64(), true)
+    if hitmanActiveContracts >= rHitman.Config.MaxActiveContractsPerHitman then
+        print("[rHitman] Hitman has reached contract limit:", hitman:Nick())
+        return false, "You have reached your maximum active contracts limit"
     end
     
     print("[rHitman] Accepting contract:", contractId, "for hitman:", hitman:Nick())

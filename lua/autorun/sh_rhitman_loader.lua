@@ -6,56 +6,102 @@
 rHitman = rHitman or {}
 rHitman.Version = "0.0.0"
 
+-- File groups
 local files = {
     ["shared"] = {
         "config/sh_config.lua",
         "core/sh_util.lua"
     },
-
+    
     ["server"] = {
-        "core/sv_core.lua",
         "core/sv_contracts.lua",
         "core/sv_networking.lua",
-        "core/sv_debug.lua",
-        "core/sv_hooks.lua"
+        "core/sv_hooks.lua",
+        "core/sv_core.lua",
+        "core/sv_debug.lua"
     },
-
+    
     ["client"] = {
         "core/cl_networking.lua",
         "core/cl_hud.lua",
-        "ui/cl_menu.lua"
+        "ui/cl_menu.lua",
+        "ui/cl_contractlist.lua",
+        "ui/cl_contractcreate.lua",
+        "ui/cl_contractdetails.lua"
     }
 }
 
 -- Print loading message
 local function printLoadMsg(realm, file)
-    print(string.format("[rHitman] Loading %s file: %s", realm, file))
+    MsgC(Color(220, 50, 50), "[rHitman] ", Color(255, 255, 255), "Loading " .. realm .. " file: " .. file .. "\n")
 end
 
--- Load files based on realm
-local function loadFiles(realm, fileList)
-    for _, file in ipairs(fileList) do
-        local path = "rhitman/" .. file
-        printLoadMsg(realm, file)
-        
-        if realm == "shared" then
-            AddCSLuaFile(path)
-            include(path)
-        elseif realm == "server" and SERVER then
-            include(path)
-        elseif realm == "client" then
-            if SERVER then
-                AddCSLuaFile(path)
-            else
-                include(path)
-            end
-        end
+-- Load shared files first
+for _, file in ipairs(files.shared) do
+    local path = "rhitman/" .. file
+    if SERVER then
+        printLoadMsg("shared", file)
+        AddCSLuaFile(path)
+        include(path)
+    end
+    if CLIENT then
+        printLoadMsg("shared", file)
+        include(path)
     end
 end
 
--- Load all files
-for realm, fileList in pairs(files) do
-    loadFiles(realm, fileList)
+-- Then load realm-specific files
+if SERVER then
+    for _, file in ipairs(files.server) do
+        printLoadMsg("server", file)
+        include("rhitman/" .. file)
+    end
+    
+    for _, file in ipairs(files.client) do
+        printLoadMsg("client", file)
+        AddCSLuaFile("rhitman/" .. file)
+    end
+end
+
+if CLIENT then
+    -- Ensure config is loaded before UI
+    hook.Add("InitPostEntity", "rHitman_LoadUI", function()
+        -- Small delay to ensure config is fully loaded
+        timer.Simple(0.1, function()
+            for _, file in ipairs(files.client) do
+                printLoadMsg("client", file)
+                include("rhitman/" .. file)
+            end
+            
+            -- Create fonts after UI is loaded
+            surface.CreateFont("rHitman.Title", {
+                font = "Roboto",
+                size = 32,
+                weight = 700
+            })
+            
+            surface.CreateFont("rHitman.Heading", {
+                font = "Roboto",
+                size = 24,
+                weight = 600
+            })
+            
+            surface.CreateFont("rHitman.Text", {
+                font = "Roboto",
+                size = 18,
+                weight = 500
+            })
+            
+            surface.CreateFont("rHitman.Small", {
+                font = "Roboto",
+                size = 14,
+                weight = 500
+            })
+            
+            -- Notify that UI is ready
+            hook.Run("rHitman_UIReady")
+        end)
+    end)
 end
 
 -- Initialize the addon

@@ -3,19 +3,40 @@
     Contains all configurable options for the addon
 ]]--
 
+rHitman = rHitman or {}
 rHitman.Config = {
     -- System defaults
     DefaultCanUseSystem = true,
     DefaultCanPlaceContracts = true,
     DefaultCanCompleteHits = false,
 
-    -- Contract settings
+    -- UI Colors
+    Colors = {
+        background = Color(30, 30, 30, 255),
+        header = Color(40, 40, 40, 255),
+        card = Color(40, 40, 40, 255),
+        cardHover = Color(50, 50, 50, 255),
+        text = Color(255, 255, 255, 255),
+        textDark = Color(200, 200, 200, 255),
+        accent = Color(220, 50, 50, 255),
+        success = Color(46, 204, 113),
+        warning = Color(241, 196, 15),
+        error = Color(231, 76, 60),
+        input = Color(40, 40, 40, 255),
+        inputHover = Color(50, 50, 50, 255),
+        HUDColor = Color(255, 100, 100)
+    },
+
+    -- Contract Settings
     MinimumHitPrice = 1000,
     MaximumHitPrice = 1000000,
     ContractDuration = 3600, -- 1 hour in seconds
     ContractCooldown = 300, -- 5 minutes between contracts
     PaymentOnCompletion = true,
     RequireEvidence = true,
+    MaxActiveContractsPerContractor = 1, -- Maximum number of active contracts one player can place
+    MaxActiveContractsPerHitman = 1, -- Maximum number of active contracts one hitman can accept
+    CurrencySymbol = "£", -- Currency symbol to use in all displays
 
     -- HUD Settings
     HUDEnabled = true,
@@ -24,7 +45,6 @@ rHitman.Config = {
     ShowCompass = true,
     CompassSize = 200,
     HUDScale = 1,
-    HUDColor = Color(255, 100, 100),
     HUDPosition = {
         x = 20,
         y = 20
@@ -36,6 +56,13 @@ rHitman.Config = {
     HUDCompletionHoldTime = 2, -- How long to show completion message before fading
     HUDFastFadeSpeed = 15, -- Speed for quick fade outs (like on death)
 
+    -- Job Restrictions
+    RestrictedJobs = {
+        ["Citizen"] = true,
+        ["Civil Protection"] = true,
+        ["Mayor"] = true
+    },
+    
     -- Hitman jobs (these jobs can complete hits but not place them)
     HitmanJobs = {
         ["medic"] = true,
@@ -60,7 +87,10 @@ rHitman.Config = {
         --     canCompleteHits = false
         -- }
 
-    }
+    },
+
+    -- Debug Settings
+    Debug = false
 }
 
 -- Utility function to check if a job is a hitman job

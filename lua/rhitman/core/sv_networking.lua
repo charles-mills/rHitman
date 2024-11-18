@@ -65,7 +65,7 @@ net.Receive("rHitman_PlaceContract", function(len, ply)
         return
     end
     
-    local success, contractId = rHitman:CreateContract(ply, target, reward)
+    local success, contractId = rHitman.CreateContract(ply, target, reward)
     if success then
         DarkRP.notify(ply, 0, 4, "Contract placed successfully!")
         rHitman:SyncContracts()
