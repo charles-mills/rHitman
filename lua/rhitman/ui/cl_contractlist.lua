@@ -112,25 +112,44 @@ function PANEL:UpdateContractList()
     self.scroll:Clear()
     local contracts = rHitman.Contracts:GetAll()
     
+    -- Convert to array for sorting
+    local contractArray = {}
+    for id, contract in pairs(contracts) do
+        contract.id = id  -- Ensure ID is set
+        table.insert(contractArray, contract)
+    end
+    
     -- Sort contracts based on selected mode
     if self.SortButton.SortMode == "Newest First" then
-        table.sort(contracts, function(a, b) 
+        table.sort(contractArray, function(a, b) 
             if not a.created or not b.created then return false end
             return a.created > b.created 
         end)
     elseif self.SortButton.SortMode == "Highest Reward" then
-        table.sort(contracts, function(a, b)
+        table.sort(contractArray, function(a, b)
             if not a.reward or not b.reward then return false end
             return a.reward > b.reward
         end)
     elseif self.SortButton.SortMode == "Target Name" then
-        table.sort(contracts, function(a, b)
+        table.sort(contractArray, function(a, b)
             if not a.targetName or not b.targetName then return false end
             return a.targetName < b.targetName
         end)
     end
 
-    for _, contract in pairs(contracts) do
+    -- Update active contract count
+    local activeCount = 0
+    for _, contract in ipairs(contractArray) do
+        if contract.status == "active" then
+            activeCount = activeCount + 1
+        end
+    end
+    if IsValid(self.Stats) then
+        self.Stats.ActiveCount = activeCount
+    end
+
+    -- Create panels for each contract
+    for _, contract in ipairs(contractArray) do
         local panel = vgui.Create("rHitman_ContractPanel")
         panel:SetContract(contract)
         self.scroll:AddItem(panel)
@@ -249,19 +268,25 @@ function PANEL:SetContract(contract)
     local acceptBtn = vgui.Create("DButton", rightCol)
     acceptBtn:SetText("ACCEPT CONTRACT")
     acceptBtn:SetFont("rHitman.Text")
-    acceptBtn:SetTextColor(color_white)
     acceptBtn:Dock(TOP)
-    acceptBtn:SetTall(32)
+    acceptBtn:DockMargin(0, 10, 0, 0)
     acceptBtn.Paint = function(self, w, h)
-        local col = self:IsHovered() and rHitman.UI.Colors.Success or ColorAlpha(rHitman.UI.Colors.Success, 200)
-        draw.RoundedBox(6, 0, 0, w, h, col)
+        local bgColor = self:IsHovered() and rHitman.UI.Colors.Success or ColorAlpha(rHitman.UI.Colors.Success, 200)
+        draw.RoundedBox(6, 0, 0, w, h, bgColor)
     end
     acceptBtn.DoClick = function()
-        if not IsValid(LocalPlayer()) then return end
-        
+        -- Send accept request to server
         net.Start("rHitman_AcceptContract")
-            net.WriteString(contract.id)
+        net.WriteString(contract.id)
         net.SendToServer()
+        
+        -- Disable button temporarily
+        acceptBtn:SetEnabled(false)
+        timer.Simple(1, function()
+            if IsValid(acceptBtn) then
+                acceptBtn:SetEnabled(true)
+            end
+        end)
     end
     
     -- Center column - Contract Details

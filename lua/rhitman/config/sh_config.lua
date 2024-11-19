@@ -41,6 +41,10 @@ rHitman.Config = {
     MaxActiveContractsPerHitman = 1, -- Maximum number of active contracts one hitman can accept
     CurrencySymbol = "£", -- Currency symbol to use in all displays
 
+    -- Contract End Conditions
+    EndOnHitmanDeath = true, -- End contract if hitman dies
+    ContractTimeLimit = 15 * 60, -- Contract time limit in seconds (15 minutes)
+
     -- HUD Settings
     HUDEnabled = true,
     ShowHealth = true,

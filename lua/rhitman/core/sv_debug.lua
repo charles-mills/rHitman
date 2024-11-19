@@ -159,34 +159,22 @@ local function GenerateSimHit()
         return false
     end
 
-    -- Generate random price within limits
-    local minReward = rHitman.Config.MinimumHitPrice or 1000
-    local maxReward = rHitman.Config.MaximumHitPrice or 10000
-    local reward = math.random(minReward, maxReward)
-
-    -- Create unique contract ID
-    local contractId = os.time() .. "_" .. math.random(10000, 99999) .. "_" .. string.format("%04d", math.random(0, 9999))
-    print("[rHitman] Creating contract:", contractId)
-
-    -- Create contract data
-    local contract = {
-        id = contractId,
-        contractor = contractor:SteamID64(),
-        contractorName = contractor:Nick(),
-        target = target:SteamID64(),
-        targetName = target:Nick(),
-        targetJob = target:getDarkRPVar("job") or "Unknown",
-        reward = reward,
-        status = "active",
-        created = os.time(),
-        expires = os.time() + (rHitman.Config.ContractDuration or 3600)
-    }
-
-    -- Store the contract
-    rHitman.Contracts[contractId] = contract
-    print("[rHitman] Created simulated contract:", contractId)
+    -- Create contract using the contract system
+    local success, result = rHitman.Contracts:Create(contractor, target, math.random(rHitman.Config.MinimumHitPrice or 1000, rHitman.Config.MaximumHitPrice or 10000))
     
-    return true
+    if success then
+        print("[rHitman] Created simulated contract:", result, "Contractor:", contractor:Nick(), "Target:", target:Nick())
+        
+        -- Sync contracts immediately
+        timer.Simple(0.1, function()
+            rHitman:SyncContracts()
+        end)
+        
+        return true
+    else
+        print("[rHitman] Failed to create simulated contract:", result)
+        return false
+    end
 end
 
 concommand.Add("rhitman_simhit", function(ply)
@@ -237,24 +225,27 @@ hook.Add("InitPostEntity", "rHitman.DebugBots", function()
             print("[rHitman] Generating simulated contracts...")
             local contractsCreated = 0
             
-            -- Try to create 4 contracts
-            for i = 1, 4 do
-                timer.Simple(i * 0.5, function()
-                    if GenerateSimHit() then
-                        contractsCreated = contractsCreated + 1
-                        -- Sync contracts after each successful creation
-                        timer.Simple(0.1, function()
-                            rHitman:SyncContracts()
-                        end)
-                    end
+            -- Create contracts sequentially with proper tracking
+            local function createNextContract(index)
+                if index > 4 then
+                    print("[rHitman] Created", contractsCreated, "simulated contracts")
+                    rHitman:SyncContracts()
+                    return
+                end
+                
+                if GenerateSimHit() then
+                    contractsCreated = contractsCreated + 1
+                    print("[rHitman] Created", contractsCreated, "simulated contracts")
+                end
+                
+                -- Create next contract after a short delay
+                timer.Simple(0.5, function()
+                    createNextContract(index + 1)
                 end)
             end
             
-            -- Final sync after all contracts are created
-            timer.Simple(3, function()
-                print("[rHitman] Created", contractsCreated, "simulated contracts")
-                rHitman:SyncContracts()
-            end)
+            -- Start creating contracts
+            createNextContract(1)
         end)
     end)
 end)

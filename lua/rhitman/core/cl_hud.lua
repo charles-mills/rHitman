@@ -87,21 +87,34 @@ surface.CreateFont("rHitman.HUD.Complete", {
     shadow = true
 })
 
+surface.CreateFont("rHitman_HUD_Large", {
+    font = "Roboto",
+    size = 36,
+    weight = 800,
+    antialias = true,
+    shadow = true
+})
+
 function PANEL:Init()
     self:SetSize(300, 180) 
     self:SetPos(10, ScrH() * 0.3)
     self.ActiveContract = nil
     self.LastUpdate = 0
-    self.TargetDistance = 0
     self.FadeAlpha = 255
     self.FadeOutSpeed = 0
-    self.HealthLerp = 0
+    self.HealthLerp = 100
     self.ArmorLerp = 0
+    self.TargetDistance = 0
     self.CompletionState = nil
-    self.CompletionAnim = 0
     self.CompletionTime = 0
+    self.CompletionAnim = 0
+    self.CompletionMessage = ""
     self:ParentToHUD()
     self:SetPaintedManually(false)
+end
+
+function PANEL:SetContract(contract)
+    self.ActiveContract = contract
 end
 
 function PANEL:StartCompletion(state)
@@ -141,6 +154,30 @@ function PANEL:StartCompletion(state)
     end)
 end
 
+function PANEL:ShowCompletion(status)
+    self.CompletionState = status
+    self.CompletionTime = CurTime()
+    
+    -- Set completion message
+    if status == "completed" then
+        self.CompletionMessage = "Contract Completed!"
+        surface.PlaySound("buttons/button3.wav")
+    elseif status == "failed" then
+        self.CompletionMessage = "Contract Failed!"
+        surface.PlaySound("buttons/button2.wav")
+    elseif status == "expired" then
+        self.CompletionMessage = "Contract Expired!"
+        surface.PlaySound("buttons/button2.wav")
+    end
+    
+    -- Start fade out after 2 seconds
+    timer.Simple(2, function()
+        if IsValid(self) then
+            self.FadeOutSpeed = rHitman.Config.HUDFadeSpeed or 5
+        end
+    end)
+end
+
 function PANEL:StartFadeOut(fast)
     self.ActiveContract = nil
     self.FadeOutSpeed = fast and rHitman.Config.HUDFastFadeSpeed or rHitman.Config.HUDFadeSpeed
@@ -169,15 +206,25 @@ function PANEL:Think()
         self.CompletionAnim = math.Clamp(dt * 2, 0, 1) -- 0.5 second animation
     end
 
-    -- Find active contract where player is hitman
+    -- Check if we have an active contract
     local found = false
-    if rHitman.getActiveContract() then
-        self.ActiveContract = rHitman.getActiveContract()
+    if rHitman.ActiveContract then
+        self.ActiveContract = rHitman.ActiveContract
         found = true
+    else
+        -- Look for active contracts where we are the hitman
+        for _, contract in pairs(rHitman.Contracts.cache) do
+            if contract.status == "active" and contract.hitman == LocalPlayer():SteamID64() then
+                self.ActiveContract = contract
+                rHitman.ActiveContract = contract
+                found = true
+                break
+            end
+        end
     end
 
     if not found and not self.CompletionState then
-        self.FadeOutSpeed = rHitman.Config.HUDFadeSpeed
+        self.FadeOutSpeed = rHitman.Config.HUDFadeSpeed or 5
     end
 
     -- Update target info if we have a target
@@ -209,25 +256,20 @@ function PANEL:Paint(w, h)
         -- Background
         draw.RoundedBoxEx(8, 0, 0, w, h, ColorAlpha(colors.background, self.FadeAlpha), false, false, true, true)
         
-        -- Header background
-        draw.RoundedBox(0, 0, 0, w, 40, ColorAlpha(colors.headerBg, self.FadeAlpha))
+        -- Draw completion message with animation
+        local messageY = h/2 - 20 + (1 - self.CompletionAnim) * 50
+        local messageAlpha = self.CompletionAnim * 255
         
-        -- Top border accent
-        surface.SetDrawColor(ColorAlpha(endStates[self.CompletionState].color, self.FadeAlpha))
-        surface.DrawRect(0, 0, w, 2)
-
-        -- rHitman Header
-        draw.SimpleText("rHitman", "rHitman.HUD.Header", w/2, 20, ColorAlpha(colors.highlight, self.FadeAlpha), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-
-        -- Animate completion message
-        local messageY = Lerp(self.CompletionAnim, h + 40, h/2)
-        local messageAlpha = Lerp(self.CompletionAnim, 0, 255)
+        draw.SimpleText(
+            self.CompletionMessage,
+            "rHitman_HUD_Large",
+            w/2,
+            messageY,
+            ColorAlpha(self.CompletionState == "completed" and colors.success or colors.failure, messageAlpha * (self.FadeAlpha/255)),
+            TEXT_ALIGN_CENTER,
+            TEXT_ALIGN_CENTER
+        )
         
-        draw.SimpleText(endStates[self.CompletionState].message, "rHitman.HUD.Complete", 
-            w/2, messageY, 
-            ColorAlpha(endStates[self.CompletionState].color, messageAlpha * (self.FadeAlpha/255)), 
-            TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-            
         return
     end
 
@@ -269,27 +311,32 @@ function PANEL:Paint(w, h)
     draw.SimpleText(math.Round(self.ArmorLerp) .. "%", "rHitman.HUD.Small", w - 15, 157, ColorAlpha(colors.text, self.FadeAlpha), TEXT_ALIGN_RIGHT)
 end
 
--- Create HUD when needed
-hook.Add("rHitman.ContractUpdated", "rHitman_UpdateHUD", function(contract)
-    -- Check if we should create a new HUD
+-- Create HUD when player spawns
+hook.Add("InitPostEntity", "rHitman.CreateHUD", function()
+    if IsValid(rHitman.HUD) then rHitman.HUD:Remove() end
+    rHitman.HUD = vgui.Create("rHitman_HUD")
+end)
+
+-- Update HUD when contracts change
+hook.Add("rHitman.ContractUpdated", "rHitman_HUD_ContractUpdate", function(contract)
+    if not IsValid(rHitman.HUD) then return end
+    if contract.hitman ~= LocalPlayer():SteamID64() then return end
+    
+    -- Check if contract ended
+    if contract.status == "completed" or contract.status == "failed" or contract.status == "expired" then
+        rHitman.HUD:ShowCompletion(contract.status)
+    end
+end)
+
+-- Handle contract acceptance
+hook.Add("rHitman.ContractAccepted", "rHitman.ShowHUD", function(contract)
     if not IsValid(rHitman.HUD) then
-        if contract.status == "active" and contract.hitman == LocalPlayer():SteamID64() then
-            rHitman.HUD = vgui.Create("rHitman_HUD")
-            rHitman.HUD.ActiveContract = contract
-            print("[rHitman] Created new HUD for contract", contract.id) -- Debug
-        end
-        return
+        rHitman.HUD = vgui.Create("rHitman_HUD")
     end
     
-    -- Update existing HUD
     if contract.hitman == LocalPlayer():SteamID64() then
-        if contract.status == "active" then
-            rHitman.HUD.ActiveContract = contract
-            print("[rHitman] Updated HUD with contract", contract.id) -- Debug
-        else
-            rHitman.HUD:StartCompletion(contract.status)
-            print("[rHitman] Starting completion for contract", contract.id, "with status", contract.status) -- Debug
-        end
+        rHitman.HUD:SetContract(contract)
+        rHitman.ActiveContract = contract
     end
 end)
 

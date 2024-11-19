@@ -12,45 +12,21 @@ util.AddNetworkString("rHitman_CompleteContract")
 util.AddNetworkString("rHitman_ContractUpdate")
 util.AddNetworkString("rHitman_RequestContracts")
 util.AddNetworkString("rHitman_ContractResponse")
+util.AddNetworkString("rHitman.CreateContract")
+util.AddNetworkString("rHitman.SyncContract")
 
 -- Sync contracts with all players
 function rHitman:SyncContracts(ply)
     -- If ply is specified, only sync with that player
     local targets = ply and {ply} or player.GetAll()
     
-    -- Get all active contracts
-    local contracts = {}
-    for id, contractData in pairs(self.Contracts) do
-        if type(contractData) == "table" then
-            -- Ensure all required fields are present
-            local contract = {
-                id = contractData.id,
-                contractor = contractData.contractor,
-                contractorName = contractData.contractorName,
-                target = contractData.target,
-                targetName = contractData.targetName,
-                targetJob = contractData.targetJob,
-                reward = contractData.reward,
-                status = contractData.status,
-                created = contractData.created,
-                expires = contractData.expires,
-                hitman = contractData.hitman
-            }
-            
-            -- Update names if players are still on server
-            local contractorPly = player.GetBySteamID64(contractData.contractor)
-            if IsValid(contractorPly) then
-                contract.contractorName = contractorPly:Nick()
-            end
-            
-            local targetPly = player.GetBySteamID64(contractData.target)
-            if IsValid(targetPly) then
-                contract.targetName = targetPly:Nick()
-                contract.targetJob = targetPly:getDarkRPVar("job") or "Unknown"
-            end
-            
-            table.insert(contracts, contract)
-        end
+    -- Get all contracts
+    local contracts = self.Contracts:GetAll()
+    
+    -- Debug print
+    print("[rHitman] Syncing", table.Count(contracts), "contracts")
+    for id, contract in pairs(contracts) do
+        print("[rHitman] Contract:", id, "Contractor:", contract.contractorName, "Target:", contract.targetName)
     end
     
     -- Send to each target player
@@ -59,7 +35,7 @@ function rHitman:SyncContracts(ply)
             net.Start("rHitman_ContractSync")
                 net.WriteTable(contracts)
             net.Send(target)
-            print("[rHitman] Sent", #contracts, "contracts to:", target:Nick())
+            print("[rHitman] Sent", table.Count(contracts), "contracts to:", target:Nick())
         end
     end
 end
@@ -105,7 +81,7 @@ local function CanAcceptContract(ply, contractId)
     
     -- Check if player already has an active contract
     local activeContracts = rHitman.Contracts:GetActiveContractsForHitman(ply:SteamID64())
-    if #activeContracts >= rHitman.Config.MaxActiveContracts then
+    if table.Count(activeContracts) >= (rHitman.Config.MaxActiveContractsPerHitman or 1) then
         return false, "You have too many active contracts"
     end
     
@@ -119,66 +95,56 @@ net.Receive("rHitman_RequestContracts", function(len, ply)
     rHitman:SyncContracts(ply)
 end)
 
--- Handle contract placement
-net.Receive("rHitman_PlaceContract", function(len, ply)
-    if len > 1000 then return end  -- Prevent oversized packets
+-- Handle contract creation request
+net.Receive("rHitman.CreateContract", function(len, ply)
+    local target = net.ReadEntity()
+    local reward = net.ReadInt(32)
     
-    local targetSteamID = net.ReadString()
-    if #targetSteamID > 30 then return end  -- SteamID64 length check
-    
-    local reward = net.ReadUInt(32)
-    local target = player.GetBySteamID64(targetSteamID)
-    
-    -- Validate contract placement
-    local canPlace, error = CanPlaceContract(ply, target, reward)
-    if not canPlace then
-        DarkRP.notify(ply, 1, 4, "Contract Error: " .. error)
+    -- Basic validation
+    if not IsValid(target) then
+        DarkRP.notify(ply, 1, 4, "Invalid target selected!")
         return
     end
     
-    -- Create the contract
-    local contract = rHitman.Contracts:Create(ply, target, reward)
-    if not contract then
-        DarkRP.notify(ply, 1, 4, "Failed to create contract")
-        return
+    -- Create contract using new method
+    local success, result = rHitman.Contracts:Create(ply, target, reward)
+    
+    if success then
+        DarkRP.notify(ply, 0, 4, "Contract placed on " .. target:Nick() .. " for $" .. reward)
+        
+        -- Sync contract to all clients
+        net.Start("rHitman.SyncContract")
+        net.WriteString(result) -- result is contract ID
+        net.WriteTable(rHitman.Contracts:GetContract(result))
+        net.Broadcast()
+    else
+        DarkRP.notify(ply, 1, 4, result) -- result is error message
     end
-    
-    print("[rHitman] Created contract:", contract.id, "for", reward)
-    
-    -- Take money from player
-    ply:addMoney(-reward)
-    DarkRP.notify(ply, 0, 4, "Contract placed successfully")
-    
-    -- Update last contract time
-    ply.LastContractPlace = CurTime()
-    
-    -- Sync after a short delay to ensure everything is set up
-    timer.Simple(0.1, function()
-        rHitman:SyncContracts()
-    end)
 end)
 
 -- Handle contract acceptance
 net.Receive("rHitman_AcceptContract", function(len, ply)
-    if len > 100 then return end  -- Prevent oversized packets
+    if not IsValid(ply) then return end
     
     local contractId = net.ReadString()
-    if #contractId > 30 then return end  -- Contract ID length check
+    if not contractId then return end
     
-    local canAccept, message = CanAcceptContract(ply, contractId)
+    -- Validate acceptance
+    local canAccept, error = CanAcceptContract(ply, contractId)
     if not canAccept then
-        DarkRP.notify(ply, 1, 4, message)
+        DarkRP.notify(ply, 1, 4, "Cannot accept contract: " .. error)
         return
     end
     
+    -- Accept the contract
     local success = rHitman:AcceptContract(contractId, ply)
     if success then
-        DarkRP.notify(ply, 0, 4, "Contract accepted!")
-        timer.Simple(0.1, function()
-            if IsValid(ply) then
-                rHitman:SyncContracts()
-            end
-        end)
+        DarkRP.notify(ply, 0, 4, "Contract accepted successfully!")
+        
+        -- Sync updated contract to all players
+        rHitman:SyncContracts()
+    else
+        DarkRP.notify(ply, 1, 4, "Failed to accept contract!")
     end
 end)
 

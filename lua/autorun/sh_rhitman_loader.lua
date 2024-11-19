@@ -24,6 +24,7 @@ local files = {
     ["client"] = {
         "core/cl_networking.lua",
         "core/cl_hud.lua",
+        "ui/cl_fonts.lua",
         "ui/cl_ui_utils.lua",
         "ui/cl_menu.lua",
         "ui/cl_contractlist.lua",
@@ -73,43 +74,6 @@ if CLIENT then
                 printLoadMsg("client", file)
                 include("rhitman/" .. file)
             end
-            
-            -- Create fonts after UI is loaded
-            surface.CreateFont("rHitman.Title", {
-                font = "Roboto",
-                size = 32,
-                weight = 700
-            })
-            
-            surface.CreateFont("rHitman.Heading", {
-                font = "Roboto",
-                size = 24,
-                weight = 600
-            })
-            
-            surface.CreateFont("rHitman.Text", {
-                font = "Roboto",
-                size = 18,
-                weight = 500
-            })
-            
-            surface.CreateFont("rHitman.Text.Small", {
-                font = "Roboto",
-                size = 14,
-                weight = 400
-            })
-            
-            surface.CreateFont("rHitman.Text.Large", {
-                font = "Roboto",
-                size = 20,
-                weight = 500
-            })
-            
-            surface.CreateFont("rHitman.Small", {
-                font = "Roboto",
-                size = 14,
-                weight = 500
-            })
             
             -- Notify that UI is ready
             hook.Run("rHitman_UIReady")
