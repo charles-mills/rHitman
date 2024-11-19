@@ -41,6 +41,16 @@ rHitman.Config = {
     MaxActiveContractsPerHitman = 1, -- Maximum number of active contracts one hitman can accept
     CurrencySymbol = "£", -- Currency symbol to use in all displays
 
+    -- Random Hits Configuration
+    randomHitsEnabled = true
+    randomHitsPremiumEnabled = false
+    randomPremiumHitUserGroups = {"VIP"}
+    randomHitInterval = 5 * 60 -- 5 minutes in seconds
+    maxRandomHitsActive = 2
+    premiumRandomHitInterval = 25 * 60 -- 25 minutes in seconds
+    maxPremiumRandomHits = 1
+    premiumHitPayout = 15000
+
     -- Contract End Conditions
     EndOnHitmanDeath = true, -- End contract if hitman dies
     ContractTimeLimit = 15 * 60, -- Contract time limit in seconds (15 minutes)
@@ -133,7 +143,6 @@ rHitman.Config = {
     -- Debug Settings
     Debug = true, -- Set to true to enable debug features
     DebugBotCount = 12, -- Number of bots to spawn in debug mode
-
 }
 
 -- Utility function to check if a job is a hitman job

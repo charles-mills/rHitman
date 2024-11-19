@@ -1,7 +1,41 @@
 --[[
     rHitman - A simple hitman system for Garry's Mod
     Author: Charles Mills
+
+    File Structure and Purpose:
+
+    /config
+        sh_config.lua      - Shared configuration file containing all adjustable settings and job configurations
+    
+    /core
+        -- Shared Files
+        sh_util.lua        - Shared utility functions for permission checks and common operations
+        sh_contracts.lua   - Core contract functionality shared between client and server
+        
+        -- Server Files
+        sv_networking.lua  - Server-side networking and command handling
+        sv_contracts.lua   - Server-side contract management (creation, completion, deletion)
+        sv_core.lua        - Core server functionality and hook management
+        sv_debug.lua       - Debug tools and bot testing functionality
+        sv_random_hits.lua - Automatic random hit generation system
+        
+        -- Client Files
+        cl_networking.lua  - Client-side networking and command handling
+        cl_hud.lua        - HUD elements for displaying active contract info
+        cl_stats.lua      - Client-side statistics tracking and management
+        
+    /ui
+        -- Client UI Files
+        cl_fonts.lua          - Font definitions and management
+        cl_ui_utils.lua       - Shared UI utilities and helper functions
+        cl_menu.lua           - Main menu framework and navigation
+        cl_contractlist.lua   - Available contracts list view
+        cl_contractcreate.lua - Contract creation interface
+        cl_contractdetails.lua- Individual contract details view
+        cl_statslist.lua      - Statistics and leaderboard interface
 ]]--
+
+
 
 rHitman = rHitman or {}
 rHitman.Version = "0.0.0"
@@ -18,7 +52,8 @@ local files = {
         "core/sv_networking.lua",
         "core/sv_contracts.lua",
         "core/sv_core.lua",
-        "core/sv_debug.lua"
+        "core/sv_debug.lua",
+        "core/sv_random_hits.lua"
     },
     
     ["client"] = {
