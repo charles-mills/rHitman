@@ -24,6 +24,7 @@ local files = {
     ["client"] = {
         "core/cl_networking.lua",
         "core/cl_hud.lua",
+        "ui/cl_ui_utils.lua",
         "ui/cl_menu.lua",
         "ui/cl_contractlist.lua",
         "ui/cl_contractcreate.lua",

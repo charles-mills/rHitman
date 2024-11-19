@@ -27,6 +27,9 @@ rHitman.Config = {
         HUDColor = Color(255, 100, 100)
     },
 
+    -- UI Settings
+    PlayerListSortMode = "job", -- "job" or "name"
+
     -- Contract Settings
     MinimumHitPrice = 1000,
     MaximumHitPrice = 1000000,

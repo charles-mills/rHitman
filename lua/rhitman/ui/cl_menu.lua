@@ -6,7 +6,7 @@
 local PANEL = {}
 
 -- Colors reference
-local colors = rHitman.Config.Colors
+local colors = rHitman.UI.Colors
 
 -- Helper function to create styled buttons
 local function CreateStyledButton(text, icon)
@@ -25,20 +25,20 @@ local function CreateStyledButton(text, icon)
         end
         
         alpha = Lerp(FrameTime() * 10, alpha, targetAlpha)
-        draw.RoundedBox(6, 0, 0, w, h, colors.input)
+        draw.RoundedBox(6, 0, 0, w, h, colors.Surface)
         
         if alpha > 0 then
-            draw.RoundedBox(6, 0, 0, w, h, ColorAlpha(colors.inputHover, alpha))
+            draw.RoundedBox(6, 0, 0, w, h, ColorAlpha(colors.SurfaceLight, alpha))
         end
         
         -- Icon
         if icon then
-            surface.SetDrawColor(colors.text)
+            surface.SetDrawColor(colors.Text)
             surface.SetMaterial(Material(icon))
             surface.DrawTexturedRect(10, h/2 - 8, 16, 16)
-            draw.SimpleText(text, "rHitman.Text", 36, h/2, colors.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+            draw.SimpleText(text, "rHitman.Text", 36, h/2, colors.Text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
         else
-            draw.SimpleText(text, "rHitman.Text", w/2, h/2, colors.text, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+            draw.SimpleText(text, "rHitman.Text", w/2, h/2, colors.Text, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
         end
     end
     
@@ -46,14 +46,15 @@ local function CreateStyledButton(text, icon)
 end
 
 function PANEL:Init()
-    if not colors then
+    if not rHitman.UI.Colors then
         ErrorNoHalt("[rHitman] Colors not initialized in menu panel!\n")
         return
     end
     
+    -- Set up the base frame
     self:SetTitle("")
     self:ShowCloseButton(false)
-    self:SetDraggable(true)
+    self:SetDraggable(false)
     
     -- Header with proper close button positioning
     self.HeaderContainer = vgui.Create("DPanel", self)
@@ -66,24 +67,22 @@ function PANEL:Init()
     self.Header:Dock(FILL)
     
     function self.Header:Paint(w, h)
-        draw.RoundedBox(8, 0, 0, w, h, colors.header)
-        draw.SimpleText("rHitman", "rHitman.Title", 20, h/2, colors.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+        draw.RoundedBox(8, 0, 0, w, h, rHitman.UI.Colors.Surface)
+        draw.SimpleText("rHitman", "rHitman.Title", 20, h/2, rHitman.UI.Colors.Text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
     end
     
-    -- Close button (with higher z-index)
+    -- Close button
     self.CloseBtn = vgui.Create("DButton", self)
     self.CloseBtn:SetSize(32, 32)
     self.CloseBtn:SetText("")
     self.CloseBtn:SetZPos(999)
-    self.CloseBtn:MoveToFront()
     
     function self.CloseBtn:Paint(w, h)
         local hovered = self:IsHovered()
-        local color = Color(40, 40, 40, hovered and 255 or 220)
-        local textColor = hovered and colors.accent or colors.text
+        local color = hovered and rHitman.UI.Colors.Error or rHitman.UI.Colors.Surface
         
         draw.RoundedBox(6, 0, 0, w, h, color)
-        draw.SimpleText("✕", "rHitman.Text", w/2, h/2, textColor, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+        draw.SimpleText("✕", "rHitman.Text", w/2, h/2, rHitman.UI.Colors.Text, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
     end
     
     function self.CloseBtn:Think()
@@ -117,7 +116,15 @@ function PANEL:Init()
     self.Sidebar:DockMargin(0, 0, 5, 0)
     
     function self.Sidebar:Paint(w, h)
-        draw.RoundedBox(8, 0, 0, w, h, colors.header)
+        draw.RoundedBox(8, 0, 0, w, h, colors.Surface)
+    end
+    
+    -- Content area
+    self.Content = vgui.Create("DPanel", self.Container)
+    self.Content:Dock(FILL)
+    
+    function self.Content:Paint(w, h)
+        draw.RoundedBox(8, 0, 0, w, h, colors.Surface)
     end
     
     -- Create contract button (highlighted)
@@ -128,14 +135,18 @@ function PANEL:Init()
     
     self.CreateContractBtn.DoClick = function()
         self:ClearContent()
-        local contractCreate = vgui.Create("rHitman_ContractCreate", self.Content)
-        contractCreate:Dock(FILL)
-        contractCreate:DockMargin(10, 10, 10, 10)
+        local contractCreate = vgui.Create("rHitman.ContractCreate", self.Content)
+        if IsValid(contractCreate) then
+            contractCreate:Dock(FILL)
+            contractCreate:InvalidateLayout(true)
+        else
+            ErrorNoHalt("[rHitman] Failed to create contract panel!\n")
+        end
     end
     
     -- Navigation buttons
     local navButtons = {
-        {text = "Available Contracts", icon = "icon16/book.png", panel = "rHitman_ContractList"},
+        {text = "Available Contracts", icon = "icon16/book.png", panel = "rHitman.ContractList"},
         {text = "My Contracts", icon = "icon16/user.png"},
         {text = "Active Contract", icon = "icon16/star.png"},
         {text = "Statistics", icon = "icon16/chart_bar.png"},
@@ -148,7 +159,7 @@ function PANEL:Init()
     separator:SetTall(1)
     separator:DockMargin(10, 5, 10, 5)
     separator.Paint = function(s, w, h)
-        surface.SetDrawColor(ColorAlpha(colors.text, 50))
+        surface.SetDrawColor(ColorAlpha(colors.Text, 50))
         surface.DrawRect(0, 0, w, h)
     end
     
@@ -162,24 +173,21 @@ function PANEL:Init()
             if btn.panel then
                 self:ClearContent()
                 local panel = vgui.Create(btn.panel, self.Content)
-                panel:Dock(FILL)
-                panel:DockMargin(10, 10, 10, 10)
+                if IsValid(panel) then
+                    panel:Dock(FILL)
+                    panel:DockMargin(10, 10, 10, 10)
+                end
             end
         end
     end
     
-    -- Content area
-    self.Content = vgui.Create("DPanel", self.Container)
-    self.Content:Dock(FILL)
-    
-    function self.Content:Paint(w, h)
-        draw.RoundedBox(8, 0, 0, w, h, colors.header)
+    -- Load default panel (Available Contracts)
+    self:ClearContent()
+    local contractList = vgui.Create("rHitman.ContractList", self.Content)
+    if IsValid(contractList) then
+        contractList:Dock(FILL)
+        contractList:DockMargin(10, 10, 10, 10)
     end
-    
-    -- Load default panel
-    local contractList = vgui.Create("rHitman_ContractList", self.Content)
-    contractList:Dock(FILL)
-    contractList:DockMargin(10, 10, 10, 10)
 end
 
 function PANEL:PerformLayout(w, h)
@@ -201,10 +209,10 @@ function PANEL:Paint(w, h)
     Derma_DrawBackgroundBlur(self, 0)
     
     -- Main background
-    draw.RoundedBox(8, 0, 0, w, h, colors.background)
+    draw.RoundedBox(8, 0, 0, w, h, colors.Surface)
     
     -- Top accent line
-    surface.SetDrawColor(colors.accent)
+    surface.SetDrawColor(colors.Accent)
     surface.DrawRect(0, 0, w, 2)
 end
 

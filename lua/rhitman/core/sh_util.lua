@@ -22,7 +22,7 @@ function rHitman.formatMoney(amount)
     if not amount then return rHitman.Config.CurrencySymbol .. "0" end
     
     -- Format the number with commas
-    local formatted = string.gsub(tostring(math.floor(amount)), "^(-?%d+)(%d%d%d)", '%1,%2')
+    local formatted = tostring(math.floor(amount)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
     
     -- Add currency symbol
     return rHitman.Config.CurrencySymbol .. formatted
