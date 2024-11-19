@@ -14,29 +14,38 @@ local CONTRACTS = rHitman.Contracts
 
 if SERVER then
     -- Server-side contract management
-    function CONTRACTS:Create(contractor, target, reward)
-        if not IsValid(contractor) or not target then return false, "Invalid contractor or target" end
+    function CONTRACTS:Create(contractor, target, reward, isAnonymous)
+        if not isAnonymous and (not IsValid(contractor) or not target) then 
+            return false, "Invalid contractor or target" 
+        end
+        if not target then return false, "Invalid target" end
         if not isnumber(reward) or reward <= 0 then return false, "Invalid reward amount" end
         
         -- Sanitize and validate inputs
-        local contractorID = contractor:SteamID64()
+        local contractorID = isAnonymous and "ANONYMOUS" or contractor:SteamID64()
         local targetID = target:SteamID64()
-        if not contractorID or not targetID then return false, "Invalid Steam IDs" end
+        if not targetID then return false, "Invalid target Steam ID" end
+        if not isAnonymous and not contractorID then return false, "Invalid contractor Steam ID" end
         
         -- Generate a unique ID using timestamp and random number
-        local id = os.time() .. "_" .. math.random(10000, 99999) .. "_" .. string.sub(contractorID, -4)
+        local id = os.time() .. "_" .. math.random(10000, 99999)
+        if not isAnonymous then
+            id = id .. "_" .. string.sub(contractorID, -4)
+        end
         
         local contract = {
             id = id,
             contractor = contractorID,
-            contractorName = string.sub(contractor:Nick(), 1, 32),  -- Limit name length
+            contractorName = isAnonymous and "Anonymous" or string.sub(contractor:Nick(), 1, 32),
             target = targetID,
             targetName = string.sub(target:Nick(), 1, 32),
             targetJob = string.sub(team.GetName(target:Team()), 1, 32),
-            reward = math.Clamp(reward, rHitman.Config.MinimumHitPrice, rHitman.Config.MaximumHitPrice),
+            reward = isAnonymous and reward or math.Clamp(reward, rHitman.Config.MinimumHitPrice, rHitman.Config.MaximumHitPrice),
             status = "active",
             created = os.time(),
-            expires = os.time() + rHitman.Config.ContractDuration
+            expires = os.time() + rHitman.Config.ContractDuration,
+            isAnonymous = isAnonymous,
+            premium = isAnonymous and reward == rHitman.Config.randomHitsPremiumPayout or false
         }
         
         print("[rHitman] Creating contract:", contract.id)

@@ -112,6 +112,31 @@ function PANEL:UpdateContractList()
     self.scroll:Clear()
     local contracts = rHitman.Contracts:GetAll()
     
+    -- Filter contracts based on player permissions
+    local function filterContracts(contracts)
+        local filtered = {}
+        local isHitman = rHitman.Util.isHitman(LocalPlayer())
+        local canAcceptPremium = rHitman.Util.canAcceptPremiumHits(LocalPlayer())
+        
+        for _, contract in pairs(contracts) do
+            -- Only show premium hits to hitmen with premium permissions
+            if contract.premium then
+                if isHitman and canAcceptPremium then
+                    table.insert(filtered, contract)
+                end
+            else
+                -- Show regular hits to all hitmen
+                if isHitman then
+                    table.insert(filtered, contract)
+                end
+            end
+        end
+        
+        return filtered
+    end
+    
+    contracts = filterContracts(contracts)
+    
     -- Convert to array for sorting
     local contractArray = {}
     for id, contract in pairs(contracts) do

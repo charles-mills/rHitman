@@ -246,3 +246,17 @@ function rHitman.Util.getStatusColor(contract)
     
     return colors[status] or Color(200, 200, 200)
 end
+
+-- Check if a player can see and accept premium hits
+function rHitman.Util.canAcceptPremiumHits(ply)
+    if not IsValid(ply) then return false end
+    if not rHitman.Config.randomHitsPremiumEnabled then return false end
+    if not rHitman.Util.isHitman(ply) then return false end
+    
+    for _, group in ipairs(rHitman.Config.randomHitsPremiumUserGroups) do
+        if ply:IsUserGroup(group) then
+            return true
+        end
+    end
+    return false
+end

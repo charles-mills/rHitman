@@ -5,7 +5,7 @@
 
 rHitman = rHitman or {}
 rHitman.Contracts = {
-    contracts = {}, -- Single source of truth for contracts
+    contracts = {},
     
     -- Money handling helpers
     HandleMoney = function(self, ply, amount, isAdd)
@@ -21,41 +21,45 @@ rHitman.Contracts = {
     end,
     
     -- Validation helpers
-    ValidatePrice = function(self, price)
+    ValidatePrice = function(self, price, isAnonymous)
         if not isnumber(price) then return false end
+        if isAnonymous then return true end -- Skip price validation for anonymous contracts
         return price >= rHitman.Config.MinimumHitPrice and price <= rHitman.Config.MaximumHitPrice
     end,
     
     ValidateContract = function(self, contract)
         if not contract then return false, "Invalid contract data" end
         if not contract.target then return false, "No target specified" end
-        if not contract.reward then return false, "No reward specified" end
-        if not self:ValidatePrice(contract.reward) then return false, "Invalid reward amount" end
+        if not contract.price then return false, "No price specified" end
+        if not self:ValidatePrice(contract.price, contract.contractor == "ANONYMOUS") then 
+            return false, "Invalid price amount" 
+        end
         return true
     end,
     
     -- Core operations
-    Create = function(self, contractor, target, price, description)
-        if not IsValid(contractor) or not IsValid(target) then 
-            return false, "Invalid player" 
+    Create = function(self, contractor, target, price, description, isAnonymous)
+        if not isAnonymous and not IsValid(contractor) then 
+            return false, "Invalid contractor" 
+        end
+        if not IsValid(target) then 
+            return false, "Invalid target" 
         end
         
-        if not rHitman.Core:CanPlaceContract(contractor) then
-            return false, "You are not authorized to place contracts"
-        end
-        
-        if contractor:SteamID64() == target:SteamID64() then
-            return false, "You cannot place a contract on yourself"
-        end
-        
-        if not self:ValidatePrice(price) then
-            return false, "Invalid contract price"
-        end
-        
-        -- Take payment if configured
-        if not rHitman.Config.PaymentOnCompletion then
-            if not self:HandleMoney(contractor, price, false) then
-                return false, "Insufficient funds"
+        if not isAnonymous then
+            if not rHitman.Core:CanPlaceContract(contractor) then
+                return false, "You are not authorized to place contracts"
+            end
+            
+            if contractor:SteamID64() == target:SteamID64() then
+                return false, "You cannot place a contract on yourself"
+            end
+            
+            -- Take payment if configured
+            if not rHitman.Config.PaymentOnCompletion then
+                if not self:HandleMoney(contractor, price, false) then
+                    return false, "Insufficient funds"
+                end
             end
         end
         
@@ -65,12 +69,13 @@ rHitman.Contracts = {
         -- Create contract data
         local contract = {
             id = contractId,
-            contractor = contractor:SteamID64(),
-            contractorName = contractor:Nick(),
+            contractor = isAnonymous and "ANONYMOUS" or contractor:SteamID64(),
+            contractorName = isAnonymous and "Anonymous" or contractor:Nick(),
             target = target:SteamID64(),
             targetName = target:Nick(),
             targetJob = target:getDarkRPVar("job") or "Unknown",
             price = price,
+            reward = price, -- Add reward field for compatibility
             description = description,
             status = "active",
             timeCreated = os.time(),
@@ -78,14 +83,17 @@ rHitman.Contracts = {
             hitman = nil,
             hitmanName = nil,
             evidence = nil,
-            paid = not rHitman.Config.PaymentOnCompletion
+            paid = true, -- Anonymous contracts are always pre-paid
+            premium = isAnonymous and description == "PREMIUM" or false -- Mark premium hits
         }
         
         -- Store contract
         self.contracts[contractId] = contract
         
         -- Set cooldown
-        contractor:SetNWFloat("rHitman_LastContract", CurTime())
+        if not isAnonymous then
+            contractor:SetNWFloat("rHitman_LastContract", CurTime())
+        end
         
         -- Notify hitmen if enabled
         if rHitman.Config.NotifyHitmanNewContract then
@@ -120,16 +128,9 @@ rHitman.Contracts = {
             return false, "You cannot accept your own contract"
         end
         
-        -- Check active contract limit
-        local activeCount = 0
-        for _, c in pairs(self.contracts) do
-            if c.hitman == hitman:SteamID64() and c.status == "active" then
-                activeCount = activeCount + 1
-            end
-        end
-        
-        if activeCount >= rHitman.Config.MaxActiveContractsPerHitman then
-            return false, "You have too many active contracts"
+        -- Check if hitman can accept contract
+        if not rHitman.canAcceptContract(hitman, contract) then
+            return false, "You cannot accept this contract"
         end
         
         -- Accept the contract
@@ -338,6 +339,35 @@ rHitman.Contracts = {
         return contractorContracts
     end
 }
+
+-- Check if a player can accept a contract
+function rHitman.canAcceptContract(ply, contract)
+    if not IsValid(ply) then return false, "Invalid player" end
+    if not contract then return false, "Invalid contract" end
+    
+    -- Check if player is a hitman
+    if not rHitman.Util.isHitman(ply) then
+        return false, "You must be a hitman to accept contracts"
+    end
+    
+    -- Check if contract is premium and player has permission
+    if contract.premium and not rHitman.Util.canAcceptPremiumHits(ply) then
+        return false, "You don't have permission to accept premium contracts"
+    end
+    
+    -- Check if hitman already has max contracts
+    local activeCount = 0
+    for _, c in pairs(rHitman.Contracts.contracts) do
+        if c.hitman == ply:SteamID64() then
+            activeCount = activeCount + 1
+        end
+    end
+    if activeCount >= rHitman.Config.MaxActiveContractsPerHitman then
+        return false, "You already have the maximum number of active contracts"
+    end
+    
+    return true
+end
 
 -- Initialize hooks
 hook.Add("Initialize", "rHitman_ContractsInit", function()

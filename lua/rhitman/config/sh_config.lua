@@ -38,18 +38,19 @@ rHitman.Config = {
     PaymentOnCompletion = true,
     ReturnFailedHitsToPool = true, -- Whether failed hits return to the pool for other hitmen
     MaxActiveContractsPerContractor = 1, -- Maximum number of active contracts one player can place
-    MaxActiveContractsPerHitman = 1, -- Maximum number of active contracts one hitman can accept
+    MaxActiveContractsPerHitman = 1, -- Maximum number of active contracts one hitman can accept (Just leave as 1 for now - support for multiple hits not yet added)
     CurrencySymbol = "£", -- Currency symbol to use in all displays
 
     -- Random Hits Configuration
-    randomHitsEnabled = true
-    randomHitsPremiumEnabled = false
-    randomPremiumHitUserGroups = {"VIP"}
-    randomHitInterval = 5 * 60 -- 5 minutes in seconds
-    maxRandomHitsActive = 2
-    premiumRandomHitInterval = 25 * 60 -- 25 minutes in seconds
-    maxPremiumRandomHits = 1
-    premiumHitPayout = 15000
+    randomHitsEnabled = true,
+    randomHitPayoutRange = {1000, 2500},
+    randomHitsPremiumEnabled = true,
+    randomHitsPremiumUserGroups = {"VIP"},
+    randomHitsInterval = 5, -- 5 minutes in seconds (NEEDS *60, debugging)
+    randomHitsMaxActive = 2,
+    randomHitsPremiumInterval = 25, -- 25 minutes in seconds (NEEDS *60, debugging)
+    randomHitsPremiumMaxActive = 1,
+    randomHitsPremiumPayout = 15000,
 
     -- Contract End Conditions
     EndOnHitmanDeath = true, -- End contract if hitman dies

@@ -35,8 +35,6 @@
         cl_statslist.lua      - Statistics and leaderboard interface
 ]]--
 
-
-
 rHitman = rHitman or {}
 rHitman.Version = "0.0.0"
 
