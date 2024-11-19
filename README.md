@@ -2,8 +2,6 @@
 
 A hitman contract management system for Garry's Mod DarkRP servers, featuring a custom, user-friendly UI and robust contract handling. A comprehensive configuration system is provided to customize the addon to your server's needs - including price ranges, contract duration, and maximum active contracts per player.
 
-The addon has been designed with the intent of being a "premium" addon, whilst remaining free, open-source, and actively maintained. Contributions are always welcome and appreciated.
-
 ## Features
 
 - **Modern User Interface**
