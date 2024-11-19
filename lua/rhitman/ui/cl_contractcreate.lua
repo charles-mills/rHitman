@@ -174,13 +174,12 @@ function PANEL:RefreshPlayerList()
             end
         end)
     end
-    
-    -- Update container height with extra padding at bottom
+
     local totalHeight = 0
     for _, child in ipairs(self.PlayerContainer:GetChildren()) do
         totalHeight = totalHeight + child:GetTall() + 5
     end
-    self.PlayerContainer:SetTall(totalHeight + 50) -- Added extra 50 pixels for bottom padding
+    self.PlayerContainer:SetTall(totalHeight + 50)
 end
 
 function PANEL:SetupContractDetails()
@@ -245,6 +244,12 @@ function PANEL:SetupContractDetails()
     priceRange:Dock(TOP)
     priceRange:DockMargin(10, 0, 10, 5)
 
+    -- Local function to format number with commas without currency symbol
+    local function formatNumberWithCommas(amount)
+        if not amount then return "0" end
+        return tostring(math.floor(amount)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+    end
+
     self.PriceInput = vgui.Create("DTextEntry", form)
     self.PriceInput:SetTall(35)
     self.PriceInput:Dock(TOP)
@@ -266,7 +271,7 @@ function PANEL:SetupContractDetails()
         local text = self:GetText()
         if text ~= "" then
             local num = tonumber(text) or 0
-            text = rHitman.formatMoney(num):sub(2) -- Remove currency symbol since we draw it separately
+            text = formatNumberWithCommas(num)
         end
         if text == "" and not self:HasFocus() then
             draw.SimpleText(self:GetPlaceholderText(), "rHitman.Text", 15 + symbolWidth, h/2, rHitman.UI.Colors.TextDark, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
@@ -354,13 +359,22 @@ function PANEL:ValidateContract()
 end
 
 function PANEL:CreateContract()
+    -- Listen for contract creation response
+    hook.Add("rHitman.ContractCreated", "ContractCreationResponse", function(success, message)
+        if success then
+            -- Close the entire menu
+            if IsValid(rHitman.UI.Menu) then
+                rHitman.UI.Menu:Remove()
+            end
+        end
+    end)
+
+    -- Send contract creation request
     net.Start("rHitman_PlaceContract")
         net.WriteString(self.SelectedPlayer:SteamID64())
         net.WriteUInt(tonumber(self.PriceInput:GetValue()) or 0, 32)
         net.WriteString("") -- Empty reason for now
     net.SendToServer()
-    
-    self:Remove()
 end
 
 function PANEL:Paint(w, h)

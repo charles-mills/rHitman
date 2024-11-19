@@ -268,6 +268,11 @@ function rHitman.getActiveContracts()
     return activeContracts
 end
 
+--[[
+    rHitman - Server Core
+    Core server-side functionality
+]]--
+
 -- Store last team change time when player changes team
 hook.Add("PlayerInitialSpawn", "rHitman_InitTeamChange", function(ply)
     ply.lastTeamChange = CurTime()
@@ -278,29 +283,11 @@ hook.Add("OnPlayerChangedTeam", "rHitman_TrackTeamChange", function(ply)
 end)
 
 -- Check for expired contracts periodically
-timer.Create("rHitman_ContractExpiry", 60, 0, function()
-    local currentTime = os.time()
-    local contractsChanged = false
-    
-    for id, contract in pairs(activeContracts) do
-        if contract.status == "active" and contract.timeExpires <= currentTime then
-            contract.status = "expired"
-            
-            -- Refund if payment was taken upfront
-            if not rHitman.Config.PaymentOnCompletion and not contract.paid then
-                local contractor = player.GetBySteamID64(contract.contractor)
-                if IsValid(contractor) then
-                    local refundAmount = math.floor(contract.price * (rHitman.Config.RefundPercentage / 100))
-                    addMoney(contractor, refundAmount)
-                    rHitman.Util.notify(contractor, "Your contract has expired. You have been refunded " .. rHitman.Util.formatCurrency(refundAmount), NOTIFY_GENERIC)
-                end
-            end
-            
-            contractsChanged = true
+timer.Create("rHitman_ContractExpireCheck", 60, 0, function()
+    local contracts = rHitman.Contracts:GetAll()
+    for _, contract in pairs(contracts) do
+        if contract.status == "active" and contract.expireTime and contract.expireTime <= os.time() then
+            rHitman.Contracts:ExpireContract(contract.id)
         end
-    end
-    
-    if contractsChanged then
-        rHitman.syncContracts()
     end
 end)

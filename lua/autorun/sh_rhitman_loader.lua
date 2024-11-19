@@ -10,13 +10,13 @@ rHitman.Version = "0.0.0"
 local files = {
     ["shared"] = {
         "config/sh_config.lua",
-        "core/sh_util.lua"
+        "core/sh_util.lua",
+        "core/sh_contracts.lua"
     },
     
     ["server"] = {
-        "core/sv_contracts.lua",
         "core/sv_networking.lua",
-        "core/sv_hooks.lua",
+        "core/sv_contracts.lua",
         "core/sv_core.lua",
         "core/sv_debug.lua"
     },
@@ -90,6 +90,18 @@ if CLIENT then
             surface.CreateFont("rHitman.Text", {
                 font = "Roboto",
                 size = 18,
+                weight = 500
+            })
+            
+            surface.CreateFont("rHitman.Text.Small", {
+                font = "Roboto",
+                size = 14,
+                weight = 400
+            })
+            
+            surface.CreateFont("rHitman.Text.Large", {
+                font = "Roboto",
+                size = 20,
                 weight = 500
             })
             

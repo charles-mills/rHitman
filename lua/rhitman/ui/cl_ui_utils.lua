@@ -6,6 +6,20 @@
 rHitman = rHitman or {}
 rHitman.UI = rHitman.UI or {}
 
+-- Font configuration
+rHitman.UI.Fonts = {
+    Families = {
+        Primary = "Roboto",
+        Fallback = "Arial"
+    },
+    Weights = {
+        Normal = 400,
+        Medium = 500,
+        Bold = 600,
+        ExtraBold = 700
+    }
+}
+
 -- Icons (Material objects)
 rHitman.UI.Icons = {
     Sort = Material("icon16/arrow_down.png"),
@@ -30,24 +44,21 @@ rHitman.UI.Colors = {
     Accent = Color(79, 91, 213)        -- Same as Primary for consistency
 }
 
--- Create custom fonts
-surface.CreateFont("rHitman.Title", {
-    font = "Roboto",
-    size = 24,
-    weight = 600,
-})
-
-surface.CreateFont("rHitman.Text", {
-    font = "Roboto",
-    size = 18,
-    weight = 500,
-})
-
-surface.CreateFont("rHitman.Small", {
-    font = "Roboto",
-    size = 14,
-    weight = 400,
-})
+-- Font utility functions
+function rHitman.UI.GetFontFamily()
+    -- Check if Roboto is available, otherwise use fallback
+    local fontFamily = rHitman.UI.Fonts.Families.Primary
+    if not surface.GetFontFallbacks then
+        return fontFamily
+    end
+    
+    local fonts = surface.GetFontFallbacks()
+    if not table.HasValue(fonts, fontFamily) then
+        fontFamily = rHitman.UI.Fonts.Families.Fallback
+    end
+    
+    return fontFamily
+end
 
 -- Player Card Component
 function rHitman.UI.CreatePlayerCard(parent, ply, isSelected, onClick)

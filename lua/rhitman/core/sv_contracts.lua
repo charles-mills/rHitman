@@ -51,21 +51,18 @@ local function CreateContract(contractor, target, reward, duration)
         return false, "Cannot place contract on yourself"
     end
     
-    -- Check contract limit for contractor
-    local contractorActiveContracts = countActiveContracts(contractor:SteamID64(), false)
-    if contractorActiveContracts >= rHitman.Config.MaxActiveContractsPerContractor then
-        return false, "You have reached your maximum active contracts limit"
-    end
-    
-    -- Create contract data
+    -- Generate contract data
     local contract = {
-        id = os.time() .. "_" .. contractor:SteamID64(),
+        id = util.CRC(tostring(os.time()) .. contractor:SteamID64() .. target:SteamID64()),
         contractor = contractor:SteamID64(),
+        contractorName = contractor:Nick(),
         target = target:SteamID64(),
+        targetName = target:Nick(),
+        targetJob = target:getDarkRPVar("job") or "Unknown",
         reward = reward,
         status = "active",
-        timeCreated = os.time(),
-        expireTime = duration and (os.time() + duration) or nil
+        created = os.time(),
+        expires = duration and (os.time() + duration) or nil
     }
     
     -- Validate contract
@@ -77,7 +74,9 @@ local function CreateContract(contractor, target, reward, duration)
     -- Store contract
     rHitman.Contracts[contract.id] = contract
     
-    -- Return success and contract ID
+    -- Notify players
+    hook.Run("rHitman.ContractCreated", contract)
+    
     return true, contract.id
 end
 

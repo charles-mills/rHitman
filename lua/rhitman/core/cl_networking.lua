@@ -3,7 +3,35 @@
     Handles all network communications between client and server
 ]]--
 
-rHitman.Contracts = rHitman.Contracts or {}
+-- Initialize contract system
+rHitman.Contracts = {
+    cache = {},
+    
+    -- Get all contracts
+    GetAll = function(self)
+        local contracts = {}
+        for _, contract in pairs(self.cache) do
+            table.insert(contracts, contract)
+        end
+        return contracts
+    end,
+    
+    -- Get specific contract
+    GetContract = function(self, id)
+        return self.cache[id]
+    end,
+    
+    -- Update contract cache
+    UpdateCache = function(self, contracts)
+        self.cache = {}
+        for _, contract in ipairs(contracts) do
+            self.cache[contract.id] = contract
+        end
+        print("[rHitman] Updated contract cache:", #contracts, "contracts")
+        hook.Run("rHitman.ContractsUpdated")
+    end
+}
+
 rHitman.ActiveContract = nil
 
 -- Request contracts from server
@@ -12,93 +40,16 @@ function rHitman.requestContracts()
     net.SendToServer()
 end
 
--- Place a contract
-function rHitman.placeContract(targetSteamID, reward, reason)
-    net.Start("rHitman_PlaceContract")
-        net.WriteString(targetSteamID)
-        net.WriteUInt(reward, 32)
-        net.WriteString(reason or "")
-    net.SendToServer()
-end
-
--- Accept a contract
-function rHitman.acceptContract(contractId)
-    print("[rHitman] Client requesting to accept contract:", contractId)
-    net.Start("rHitman_AcceptContract")
-        net.WriteString(contractId)
-    net.SendToServer()
-end
-
--- Cancel a contract
-function rHitman.cancelContract(contractId)
-    net.Start("rHitman_CancelContract")
-        net.WriteString(contractId)
-    net.SendToServer()
-end
-
--- Complete a contract
-function rHitman.completeContract(contractId)
-    net.Start("rHitman_CompleteContract")
-        net.WriteString(contractId)
-    net.SendToServer()
-end
-
--- Get all contracts
-function rHitman.getContracts()
-    return rHitman.Contracts
-end
-
--- Get a specific contract
-function rHitman.getContract(contractId)
-    return rHitman.Contracts[contractId]
-end
-
--- Get active contract for local player
-function rHitman.getActiveContract()
-    return rHitman.ActiveContract
-end
-
--- Network receiver for contract sync
-net.Receive("rHitman_SyncContracts", function()
-    local numContracts = net.ReadUInt(16)
-    local contracts = {}
-    local hadActiveContract = rHitman.ActiveContract != nil
-    local oldActiveContract = rHitman.ActiveContract
+-- Handle contract sync
+net.Receive("rHitman_ContractSync", function()
+    local contracts = net.ReadTable()
+    print("[rHitman] Received contract sync:", #contracts, "contracts")
+    rHitman.Contracts:UpdateCache(contracts)
     
-    rHitman.ActiveContract = nil
-    print("[rHitman] Receiving contract sync. Number of contracts:", numContracts)
-    
-    -- Read all contracts
-    for i = 1, numContracts do
-        local id = net.ReadString()
-        local contract = {
-            id = id,
-            contractor = net.ReadString(),
-            target = net.ReadString(),
-            targetEnt = net.ReadInt(32),
-            reward = net.ReadUInt(32),
-            timeCreated = net.ReadUInt(32),
-            expireTime = net.ReadUInt(32),
-            status = net.ReadString(),
-            hitman = net.ReadString()
-        }
-        contracts[id] = contract
-        
-        -- Update active contract if this one is ours
-        if contract.hitman == LocalPlayer():SteamID64() and contract.status == "active" then
-            rHitman.ActiveContract = contract
-            print("[rHitman] Found active contract for local player:", contract.id)
-        end
-    end
-    
-    -- Store contracts
-    rHitman.Contracts = contracts
-    
-    -- Trigger contract update hook if we have an active contract
-    if rHitman.ActiveContract then
-        print("[rHitman] Triggering contract update for active contract:", rHitman.ActiveContract.id)
-        hook.Run("rHitman.ContractUpdated", rHitman.ActiveContract)
-    end
+    -- Run the update hook after a short delay to ensure everything is set up
+    timer.Simple(0.1, function()
+        hook.Run("rHitman.ContractsUpdated")
+    end)
 end)
 
 -- Network receiver for contract updates
@@ -108,19 +59,40 @@ net.Receive("rHitman_ContractUpdate", function()
     
     print("[rHitman] Received contract update for:", contractId, "Status:", status)
     
-    if rHitman.Contracts[contractId] then
-        local oldStatus = rHitman.Contracts[contractId].status
-        rHitman.Contracts[contractId].status = status
+    local contract = rHitman.Contracts:GetContract(contractId)
+    if contract then
+        local oldStatus = contract.status
+        contract.status = status
         
         -- If this was our active contract and it's no longer active
         if rHitman.ActiveContract and rHitman.ActiveContract.id == contractId and status != "active" then
-            local contract = rHitman.Contracts[contractId]
             rHitman.ActiveContract = nil
-            
-            -- Trigger the contract update hook with the new status
-            hook.Run("rHitman.ContractUpdated", contract)
+            print("[rHitman] Active contract updated:", contractId, oldStatus, "->", status)
         end
+        
+        -- Trigger the contract update hook
+        hook.Run("rHitman.ContractUpdated", contract)
     end
+end)
+
+-- Network receiver for contract creation response
+net.Receive("rHitman_ContractResponse", function()
+    local success = net.ReadBool()
+    local message = net.ReadString()
+    
+    print("[rHitman] Contract response:", success, message)
+    
+    if success then
+        notification.AddLegacy(message, NOTIFY_GENERIC, 4)
+    else
+        notification.AddLegacy(message, NOTIFY_ERROR, 4)
+    end
+    
+    -- Run the contract created hook
+    hook.Run("rHitman.ContractCreated", success, message)
+    
+    -- Show notification
+    surface.PlaySound(success and "buttons/button15.wav" or "buttons/button10.wav")
 end)
 
 -- Request initial contracts when player spawns

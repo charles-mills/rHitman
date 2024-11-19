@@ -93,7 +93,9 @@ rHitman.Config = {
     },
 
     -- Debug Settings
-    Debug = false
+    Debug = true, -- Set to true to enable debug features
+    DebugBotCount = 12, -- Number of bots to spawn in debug mode
+
 }
 
 -- Utility function to check if a job is a hitman job
