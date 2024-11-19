@@ -136,16 +136,38 @@ net.Receive("rHitman_AcceptContract", function(len, ply)
         return
     end
     
-    -- Accept the contract
-    local success = rHitman:AcceptContract(contractId, ply)
-    if success then
-        DarkRP.notify(ply, 0, 4, "Contract accepted successfully!")
-        
-        -- Sync updated contract to all players
-        rHitman:SyncContracts()
-    else
-        DarkRP.notify(ply, 1, 4, "Failed to accept contract!")
+    -- Get the contract
+    local contract = rHitman.Contracts:GetContract(contractId)
+    if not contract then return end
+    
+    -- Update contract status
+    contract.status = "active"
+    contract.hitman = ply:SteamID64()
+    contract.hitmanName = ply:Nick()
+    contract.acceptedAt = os.time()
+    
+    -- Update in main contracts table
+    rHitman.Contracts.contracts[contractId] = contract
+    
+    -- Notify relevant players
+    DarkRP.notify(ply, 0, 4, "Contract accepted successfully!")
+    
+    -- Notify the contractor
+    local contractor = player.GetBySteamID64(contract.contractor)
+    if IsValid(contractor) then
+        DarkRP.notify(contractor, 0, 4, ply:Nick() .. " has accepted your contract!")
     end
+    
+    -- Sync the updated contract to all clients
+    net.Start("rHitman_ContractUpdate")
+    net.WriteString(contractId)
+    net.WriteString("active")
+    net.WriteString(ply:SteamID64())
+    net.WriteString(ply:Nick())
+    net.Broadcast()
+    
+    -- Run contract accepted hook
+    hook.Run("rHitman_ContractAccepted", contract)
 end)
 
 -- Handle contract cancellation

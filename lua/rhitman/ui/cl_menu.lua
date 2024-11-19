@@ -59,8 +59,8 @@ function PANEL:Init()
     -- Header with proper close button positioning
     self.HeaderContainer = vgui.Create("DPanel", self)
     self.HeaderContainer:Dock(TOP)
-    self.HeaderContainer:SetTall(60)
-    self.HeaderContainer:DockMargin(10, 10, 10, 5)
+    self.HeaderContainer:SetTall(45)
+    self.HeaderContainer:DockMargin(10, 5, 10, 5)
     self.HeaderContainer.Paint = function() end
     
     self.Header = vgui.Create("DPanel", self.HeaderContainer)
@@ -149,7 +149,7 @@ function PANEL:Init()
         {text = "Available Contracts", icon = "icon16/book.png", panel = "rHitman.ContractList"},
         {text = "My Contracts", icon = "icon16/user.png"},
         {text = "Active Contract", icon = "icon16/star.png"},
-        {text = "Statistics", icon = "icon16/chart_bar.png"},
+        {text = "Statistics", icon = "icon16/chart_bar.png", panel = "rHitman.StatsList"},
         {text = "Settings", icon = "icon16/cog.png"}
     }
     
@@ -175,7 +175,7 @@ function PANEL:Init()
                 local panel = vgui.Create(btn.panel, self.Content)
                 if IsValid(panel) then
                     panel:Dock(FILL)
-                    panel:DockMargin(10, 10, 10, 10)
+                    panel:DockMargin(5, 5, 5, 5)
                 end
             end
         end
@@ -186,7 +186,7 @@ function PANEL:Init()
     local contractList = vgui.Create("rHitman.ContractList", self.Content)
     if IsValid(contractList) then
         contractList:Dock(FILL)
-        contractList:DockMargin(10, 10, 10, 10)
+        contractList:DockMargin(5, 5, 5, 5)
     end
 end
 

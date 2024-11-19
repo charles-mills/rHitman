@@ -63,6 +63,40 @@ rHitman.Config = {
     HUDCompletionHoldTime = 2, -- How long to show completion message before fading
     HUDFastFadeSpeed = 15, -- Speed for quick fade outs (like on death)
 
+    -- Rank System
+    Ranks = {
+        {
+            name = "Rookie",
+            minHits = 0,
+            maxHits = 4,
+            color = Color(150, 150, 150) -- Gray
+        },
+        {
+            name = "Beginner",
+            minHits = 5,
+            maxHits = 14,
+            color = Color(102, 204, 255) -- Light Blue
+        },
+        {
+            name = "Amateur",
+            minHits = 15,
+            maxHits = 24,
+            color = Color(255, 215, 0) -- Gold
+        },
+        {
+            name = "Professional",
+            minHits = 25,
+            maxHits = 99,
+            color = Color(255, 64, 64) -- Red
+        },
+        {
+            name = "Master",
+            minHits = 100,
+            maxHits = math.huge,
+            color = Color(138, 43, 226) -- Purple
+        }
+    },
+
     -- Job Restrictions
     RestrictedJobs = {
         ["Citizen"] = true,

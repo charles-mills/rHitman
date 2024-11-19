@@ -79,8 +79,15 @@ net.Receive("rHitman_ContractUpdate", function()
             print("[rHitman] Active contract updated:", contractId, oldStatus, "->", status)
         end
         
-        -- Update contract in cache
-        rHitman.Contracts.cache[contractId] = contract
+        -- Remove from cache if not active (accepted or completed)
+        if status ~= "pending" then
+            rHitman.Contracts.cache[contractId] = nil
+            print("[rHitman] Removed contract from cache:", contractId)
+        else
+            -- Update contract in cache
+            rHitman.Contracts.cache[contractId] = contract
+            print("[rHitman] Updated contract in cache:", contractId)
+        end
         
         -- Set as active contract if we're the hitman and it's active
         if status == "active" and hitmanId == LocalPlayer():SteamID64() then
@@ -92,7 +99,7 @@ net.Receive("rHitman_ContractUpdate", function()
         hook.Run("rHitman.ContractUpdated", contract)
         
         -- Trigger contract accepted hook if relevant
-        if status == "accepted" and hitmanId == LocalPlayer():SteamID64() then
+        if status == "active" and hitmanId == LocalPlayer():SteamID64() then
             hook.Run("rHitman.ContractAccepted", contract)
         end
     end

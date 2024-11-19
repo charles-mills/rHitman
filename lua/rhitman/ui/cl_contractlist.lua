@@ -17,7 +17,7 @@ function PANEL:Init()
     -- Header
     self.Header = vgui.Create("DPanel", self)
     self.Header:Dock(TOP)
-    self.Header:SetTall(50)
+    self.Header:SetTall(30)
     self.Header:DockMargin(10, 10, 10, 5)
     self.Header.Paint = function(self, w, h)
         draw.SimpleText("Available Contracts", "rHitman.Title", 10, h/2, rHitman.UI.Colors.Text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
