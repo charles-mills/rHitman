@@ -75,6 +75,10 @@ CurrencySymbol = "$"               -- Currency symbol for price display
 2. Accept contracts as a hitman
 3. Track contract status and completion
 
+## UI Preview (Beta - Subject to Change)
+![image](https://github.com/user-attachments/assets/04c46e64-1548-4203-8cd2-ebeb0fbea686)
+![image](https://github.com/user-attachments/assets/ce5e9190-9e29-4345-a446-99d497c39366)
+
 ## License
 
 This project is licensed under the MIT License - see LICENSE for details.
