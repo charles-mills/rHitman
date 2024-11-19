@@ -31,8 +31,8 @@ rHitman.Config = {
     PlayerListSortMode = "job", -- "job" or "name"
 
     -- Contract Settings
-    MinimumHitPrice = 1000,
-    MaximumHitPrice = 1000000,
+    MinimumHitReward = 1000,
+    MaximumHitReward = 1000000,
     ContractDuration = 3600, -- 1 hour in seconds
     ContractCooldown = 300, -- 5 minutes between contracts
     PaymentOnCompletion = true,
@@ -51,6 +51,12 @@ rHitman.Config = {
     randomHitsPremiumInterval = 25, -- 25 minutes in seconds (NEEDS *60, debugging)
     randomHitsPremiumMaxActive = 1,
     randomHitsPremiumPayout = 15000,
+    randomHitsDisallowedTeams = { -- Teams that can't be targeted by random hits
+        ["Civil Protection"] = true,
+        ["Civil Protection Chief"] = true,
+        ["Mayor"] = true,
+        ["Medic"] = true
+    },
 
     -- Contract End Conditions
     EndOnHitmanDeath = true, -- End contract if hitman dies

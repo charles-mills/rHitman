@@ -14,24 +14,22 @@ local CONTRACTS = rHitman.Contracts
 
 if SERVER then
     -- Server-side contract management
-    function CONTRACTS:Create(contractor, target, reward, isAnonymous)
-        if not isAnonymous and (not IsValid(contractor) or not target) then 
-            return false, "Invalid contractor or target" 
+    function CONTRACTS:Create(contractor, target, reward, description, isAnonymous)
+        if not isAnonymous then
+            -- Validate contract placement for non-anonymous contracts
+            local canPlace, reason = rHitman.Util.canPlaceContract(contractor, target, reward)
+            if not canPlace then return false, reason end
+        else
+            -- Basic validation for anonymous contracts
+            if not target then return false, "Invalid target" end
+            local success, msg = rHitman.Util.validateReward(reward)
+            if not success then return false, msg end
         end
-        if not target then return false, "Invalid target" end
-        if not isnumber(reward) or reward <= 0 then return false, "Invalid reward amount" end
         
-        -- Sanitize and validate inputs
+        -- Generate contract ID and data
         local contractorID = isAnonymous and "ANONYMOUS" or contractor:SteamID64()
         local targetID = target:SteamID64()
-        if not targetID then return false, "Invalid target Steam ID" end
-        if not isAnonymous and not contractorID then return false, "Invalid contractor Steam ID" end
-        
-        -- Generate a unique ID using timestamp and random number
-        local id = os.time() .. "_" .. math.random(10000, 99999)
-        if not isAnonymous then
-            id = id .. "_" .. string.sub(contractorID, -4)
-        end
+        local id = rHitman.Util.generateContractID()
         
         local contract = {
             id = id,
@@ -40,21 +38,37 @@ if SERVER then
             target = targetID,
             targetName = string.sub(target:Nick(), 1, 32),
             targetJob = string.sub(team.GetName(target:Team()), 1, 32),
-            reward = isAnonymous and reward or math.Clamp(reward, rHitman.Config.MinimumHitPrice, rHitman.Config.MaximumHitPrice),
+            reward = reward,
+            description = description or "",
             status = "active",
             created = os.time(),
             expires = os.time() + rHitman.Config.ContractDuration,
             isAnonymous = isAnonymous,
-            premium = isAnonymous and reward == rHitman.Config.randomHitsPremiumPayout or false
+            premium = isAnonymous and reward == rHitman.Config.randomHitsPremiumPayout or false,
+            paid = isAnonymous or rHitman.Config.PaymentOnCompletion == false
         }
         
-        print("[rHitman] Creating contract:", contract.id)
-        contractCache[contract.id] = contract
-        return true, contract.id
-    end
-    
-    function CONTRACTS:GetContract(id)
-        return contractCache[id]
+        -- Take payment if configured and not anonymous
+        if not isAnonymous and not rHitman.Config.PaymentOnCompletion then
+            contractor:addMoney(-reward)
+        end
+        
+        -- Store contract
+        contractCache[id] = contract
+        
+        -- Notify hitmen if enabled
+        if rHitman.Config.NotifyHitmanNewContract then
+            for _, ply in ipairs(player.GetAll()) do
+                if rHitman.Core:CanCompleteHits(ply) and (not contractor or ply != contractor) then
+                    rHitman.Util.notify(ply, "A new contract worth " .. rHitman.Util.formatCurrency(reward) .. " is available!", NOTIFY_HINT)
+                end
+            end
+        end
+        
+        -- Run hook
+        hook.Run("rHitman.ContractCreated", contract)
+        
+        return true, id
     end
     
     function CONTRACTS:GetAll()
@@ -63,6 +77,10 @@ if SERVER then
             contracts[id] = contract
         end
         return contracts
+    end
+    
+    function CONTRACTS:GetContract(id)
+        return contractCache[id]
     end
     
     function CONTRACTS:GetActiveContractsForHitman(steamID)
@@ -139,15 +157,21 @@ else
     end
     
     function CONTRACTS:GetAll()
-        local contracts = {}
-        for id, contract in pairs(contractCache) do
-            contracts[id] = contract
-        end
-        return contracts
+        return contractCache
     end
     
     function CONTRACTS:GetContract(id)
         return contractCache[id]
+    end
+    
+    function CONTRACTS:GetActiveContracts()
+        local active = {}
+        for id, contract in pairs(contractCache) do
+            if contract.status == "active" then
+                active[id] = contract
+            end
+        end
+        return active
     end
     
     function CONTRACTS:ValidateContract(contract)

@@ -226,93 +226,43 @@ function PANEL:SetupContractDetails()
     targetJob:SetTextColor(rHitman.UI.Colors.TextDark)
     targetJob:SizeToContents()
     
-    -- Price input
-    local priceLabel = vgui.Create("DLabel", form)
-    priceLabel:SetText("Contract Price")
-    priceLabel:SetFont("rHitman.Text")
-    priceLabel:SetTextColor(rHitman.UI.Colors.Text)
-    priceLabel:Dock(TOP)
-    priceLabel:DockMargin(10, 10, 10, 5)
-
-    -- Price range info
-    local priceRange = vgui.Create("DLabel", form)
-    priceRange:SetText(string.format("Range: %s - %s", 
-        rHitman.formatMoney(rHitman.Config.MinimumHitPrice), 
-        rHitman.formatMoney(rHitman.Config.MaximumHitPrice)))
-    priceRange:SetFont("rHitman.Text")
-    priceRange:SetTextColor(rHitman.UI.Colors.TextDark)
-    priceRange:Dock(TOP)
-    priceRange:DockMargin(10, 0, 10, 5)
-
-    -- Local function to format number with commas without currency symbol
-    local function formatNumberWithCommas(amount)
-        if not amount then return "0" end
-        return tostring(math.floor(amount)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
-    end
-
-    self.PriceInput = vgui.Create("DTextEntry", form)
-    self.PriceInput:SetTall(35)
-    self.PriceInput:Dock(TOP)
-    self.PriceInput:DockMargin(10, 0, 10, 10)
-    self.PriceInput:SetPlaceholderText("Enter contract price...")
-    self.PriceInput:SetNumeric(true)
-    self.PriceInput:RequestFocus() -- Auto-focus the input when created
-    self.PriceInput.Paint = function(self, w, h)
-        local bgColor = self:HasFocus() and rHitman.UI.Colors.SurfaceLight or rHitman.UI.Colors.Surface
-        draw.RoundedBox(6, 0, 0, w, h, bgColor)
+    -- Reward input
+    local rewardLabel = vgui.Create("DLabel", form)
+    rewardLabel:SetText("Contract Reward")
+    rewardLabel:SetFont("rHitman.Text")
+    rewardLabel:SetTextColor(rHitman.UI.Colors.Text)
+    rewardLabel:Dock(TOP)
+    rewardLabel:DockMargin(10, 10, 10, 5)
+    
+    -- Show reward range
+    local rewardRange = vgui.Create("DLabel", form)
+    rewardRange:SetText(string.format("Range: %s - %s", 
+        rHitman.Util.formatCurrency(rHitman.Config.MinimumHitReward),
+        rHitman.Util.formatCurrency(rHitman.Config.MaximumHitReward)
+    ))
+    rewardRange:SetFont("rHitman.Text")
+    rewardRange:SetTextColor(rHitman.UI.Colors.TextDark)
+    rewardRange:Dock(TOP)
+    rewardRange:DockMargin(10, 0, 10, 5)
+    
+    -- Create reward input
+    self.RewardInput = vgui.Create("DTextEntry", form)
+    self.RewardInput:SetFont("rHitman.Text")
+    self.RewardInput:SetNumeric(true)
+    self.RewardInput:SetPlaceholderText("Enter contract reward...")
+    self.RewardInput:Dock(TOP)
+    self.RewardInput:DockMargin(10, 0, 10, 10)
+    self.RewardInput.OnChange = function(pnl)
+        local val = tonumber(pnl:GetValue())
+        if not val then return end
         
-        -- Draw currency symbol
-        surface.SetFont("rHitman.Text")
-        local symbol = rHitman.Config.CurrencySymbol
-        local symbolWidth = surface.GetTextSize(symbol)
-        draw.SimpleText(symbol, "rHitman.Text", 10, h/2, rHitman.UI.Colors.TextDark, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-        
-        -- Draw text with padding for currency symbol
-        local text = self:GetText()
-        if text ~= "" then
-            local num = tonumber(text) or 0
-            text = formatNumberWithCommas(num)
+        if val < rHitman.Config.MinimumHitReward then
+            pnl:SetValue(rHitman.Config.MinimumHitReward)
+        elseif val > rHitman.Config.MaximumHitReward then
+            pnl:SetValue(rHitman.Config.MaximumHitReward)
         end
-        if text == "" and not self:HasFocus() then
-            draw.SimpleText(self:GetPlaceholderText(), "rHitman.Text", 15 + symbolWidth, h/2, rHitman.UI.Colors.TextDark, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-        else
-            draw.SimpleText(text, "rHitman.Text", 15 + symbolWidth, h/2, self:GetTextColor(), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-        end
-        
-        -- Always draw outline, thicker when focused
-        local outlineColor = self:HasFocus() and rHitman.UI.Colors.Primary or rHitman.UI.Colors.TextDark
-        local thickness = self:HasFocus() and 2 or 1
-        surface.SetDrawColor(outlineColor)
-        surface.DrawOutlinedRect(0, 0, w, h, thickness)
     end
     
-    -- Override default text drawing
-    self.PriceInput.DrawTextEntryText = function(self)
-        -- We're handling text drawing in Paint
-    end
-    
-    self.PriceInput.OnChange = function(self)
-        local text = self:GetText()
-        -- Remove any non-numeric characters
-        text = string.gsub(text, "[^0-9]", "")
-        local value = tonumber(text) or 0
-        
-        -- Update text color based on value
-        if value < rHitman.Config.MinimumHitPrice then
-            self:SetTextColor(rHitman.UI.Colors.Error)
-        elseif value > rHitman.Config.MaximumHitPrice then
-            self:SetTextColor(rHitman.UI.Colors.Error)
-        else
-            self:SetTextColor(rHitman.UI.Colors.Text)
-        end
-        
-        -- Update the text without commas for proper number handling
-        if self:GetText() ~= text then
-            self:SetText(text)
-            self:SetCaretPos(#text)
-        end
-    end
-
     -- Create contract button
     local createButton = rHitman.UI.CreateButton(form, "Place Contract", rHitman.UI.Colors.Success, function()
         if self:ValidateContract() then
@@ -338,20 +288,20 @@ function PANEL:SetupContractDetails()
 end
 
 function PANEL:ValidateContract()
-    local price = tonumber(self.PriceInput:GetValue()) or 0
+    local reward = tonumber(self.RewardInput:GetValue()) or 0
     
     if not IsValid(self.SelectedPlayer) then
         notification.AddLegacy("Invalid target selected.", NOTIFY_ERROR, 3)
         return false
     end
     
-    if price < rHitman.Config.MinimumHitPrice then
-        notification.AddLegacy("Price must be at least " .. rHitman.formatMoney(rHitman.Config.MinimumHitPrice), NOTIFY_ERROR, 3)
+    if reward < rHitman.Config.MinimumHitReward then
+        notification.AddLegacy("Reward is below minimum allowed", NOTIFY_ERROR, 3)
         return false
     end
     
-    if price > rHitman.Config.MaximumHitPrice then
-        notification.AddLegacy("Price cannot exceed " .. rHitman.formatMoney(rHitman.Config.MaximumHitPrice), NOTIFY_ERROR, 3)
+    if reward > rHitman.Config.MaximumHitReward then
+        notification.AddLegacy("Reward exceeds maximum allowed", NOTIFY_ERROR, 3)
         return false
     end
     
@@ -372,7 +322,7 @@ function PANEL:CreateContract()
     -- Send contract creation request
     net.Start("rHitman_PlaceContract")
         net.WriteString(self.SelectedPlayer:SteamID64())
-        net.WriteUInt(tonumber(self.PriceInput:GetValue()) or 0, 32)
+        net.WriteUInt(tonumber(self.RewardInput:GetValue()) or 0, 32)
         net.WriteString("") -- Empty reason for now
     net.SendToServer()
 end

@@ -141,7 +141,7 @@ function PANEL:Init()
         )
         
         draw.SimpleText(
-            DarkRP.formatMoney(contract.reward or 0),
+            rHitman.Util.formatCurrency(contract.reward or 0),
             "rHitman.Heading",
             10,
             105,

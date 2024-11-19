@@ -45,7 +45,7 @@ local function getActivePremiumHits()
 end
 
 -- Get a random target from online players
-local function getRandomTarget()
+local function getRandomTarget(premium)
     local players = player.GetAll()
     local validTargets = {}
     debugPrint("Finding random target from", #players, "players")
@@ -54,12 +54,13 @@ local function getRandomTarget()
         -- Don't target hitmen or disallowed jobs
         local jobName = team.GetName(ply:Team())
         local isHitman = rHitman.Util.isHitman(ply)
-        local isDisallowed = rHitman.Config.DisallowedTeams[jobName]
+        local isDisallowed = rHitman.Config.randomHitsDisallowedTeams[jobName]
         
         debugPrint("Checking player", ply:Nick(), "Job:", jobName, "Hitman:", isHitman, "Disallowed:", isDisallowed)
         
         if not isHitman and not isDisallowed then
             table.insert(validTargets, ply)
+            debugPrint("Added", ply:Nick(), "as valid target")
         end
     end
     
@@ -74,49 +75,47 @@ local function getRandomTarget()
     return nil
 end
 
--- Get a random payout amount
+-- Get random payout amount
 local function getRandomPayout()
-    local minPayout = Config.randomHitPayoutRange[1]
-    local maxPayout = Config.randomHitPayoutRange[2]
-    local payout = math.random(minPayout, maxPayout)
-    debugPrint("Generated random payout:", payout, "Range:", minPayout, "-", maxPayout)
-    return payout
+    local min = Config.randomHitPayoutRange[1]
+    local max = Config.randomHitPayoutRange[2]
+    return math.random(min, max)
 end
 
 -- Create a random hit
 local function createRandomHit(premium)
-    debugPrint("Attempting to create", premium and "premium" or "regular", "random hit")
+    if not Config.randomHitsEnabled then return end
+    if premium and not Config.randomHitsPremiumEnabled then return end
     
-    local target = getRandomTarget()
+    -- Get valid target
+    local target = getRandomTarget(premium)
     if not target then 
         debugPrint("Failed to create hit: No valid target found")
         return 
     end
     
+    -- Generate reward
     local reward = premium and Config.randomHitsPremiumPayout or getRandomPayout()
     debugPrint("Creating contract with reward:", reward)
     
-    -- Use shared contract creation
-    local success, error = rHitman.Contracts:Create(
-        nil, -- No contractor
+    -- Create the contract
+    local success, contractId = rHitman.Contracts:Create(
+        nil,  -- No contractor for random hits
         target,
         reward,
-        true -- isAnonymous flag
+        premium and "PREMIUM" or nil,
+        true  -- isAnonymous
     )
     
     if not success then
-        debugPrint("Failed to create contract:", error)
+        debugPrint("Failed to create contract:", contractId) -- Error message is in contractId
     else
-        debugPrint("Successfully created", premium and "premium" or "regular", "random hit")
+        debugPrint("Created random hit:", contractId)
     end
-    
-    return success
 end
 
 -- Think hook for random hit creation
 hook.Add("Think", "rHitman.RandomHits", function()
-    if not Config.randomHitsEnabled then return end
-    
     local curTime = os.time()
     
     -- Check regular random hits

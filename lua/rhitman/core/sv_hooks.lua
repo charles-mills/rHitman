@@ -10,12 +10,14 @@ hook.Add("PlayerDeath", "rHitman_ContractCompletion", function(victim, inflictor
     -- Check all active contracts
     for contractId, contract in pairs(rHitman.Contracts) do
         if contract.status == "active" and contract.target == victim:SteamID64() and contract.hitman == attacker:SteamID64() then
-            -- Contract completed successfully
-            rHitman:CompleteContract(contractId, attacker)
+            local success, err = rHitman:CompleteContract(contractId, attacker)
             
-            -- Notify players
-            DarkRP.notify(attacker, 0, 4, "Contract completed successfully!")
-            DarkRP.notify(victim, 1, 4, "You were eliminated by a hitman!")
+            if success then
+                DarkRP.notify(attacker, 0, 4, "Contract completed successfully!")
+                DarkRP.notify(victim, 1, 4, "You were eliminated by a hitman!")
+            else
+                DarkRP.notify(attacker, 1, 4, "Failed to complete contract: " .. (err or "Unknown error"))
+            end
         end
     end
 end)
@@ -30,12 +32,18 @@ hook.Add("PlayerDisconnected", "rHitman_ContractCleanup", function(ply)
     for contractId, contract in pairs(rHitman.Contracts) do
         -- Cancel contracts where the disconnected player is the target
         if contract.status == "active" and contract.target == steamId then
-            rHitman:CancelContract(contractId, "Target disconnected")
+            local success = rHitman:CancelContract(contractId, "Target disconnected")
+            if not success then
+                ErrorNoHalt("[rHitman] Failed to cancel contract " .. contractId .. " after target disconnect\n")
+            end
         end
         
         -- Fail contracts where the disconnected player is the hitman
         if contract.status == "active" and contract.hitman == steamId then
-            rHitman.failContract(contractId, "Hitman disconnected")
+            local success = rHitman:FailContract(contractId, "Hitman disconnected")
+            if not success then
+                ErrorNoHalt("[rHitman] Failed to fail contract " .. contractId .. " after hitman disconnect\n")
+            end
         end
     end
 end)
@@ -47,11 +55,16 @@ timer.Create("rHitman_ContractExpiration", 60, 0, function()
     -- Check all contracts
     for contractId, contract in pairs(rHitman.Contracts) do
         if contract.status == "active" and contract.expireTime and currentTime >= contract.expireTime then
-            rHitman:ExpireContract(contractId)
+            local success = rHitman:ExpireContract(contractId)
             
             -- Notify relevant players
-            if IsValid(Player(contract.hitman)) then
-                DarkRP.notify(Player(contract.hitman), 1, 4, "Your contract has expired!")
+            if success then
+                local hitman = Player(contract.hitman)
+                if IsValid(hitman) then
+                    DarkRP.notify(hitman, 1, 4, "Your contract has expired!")
+                end
+            else
+                ErrorNoHalt("[rHitman] Failed to expire contract " .. contractId .. "\n")
             end
         end
     end

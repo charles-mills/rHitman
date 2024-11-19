@@ -284,7 +284,7 @@ function PANEL:SetContract(contract)
     
     -- Reward amount
     local rewardAmount = vgui.Create("DLabel", rewardContainer)
-    rewardAmount:SetText(DarkRP.formatMoney(contract.reward))
+    rewardAmount:SetText(rHitman.Util.formatCurrency(contract.reward))
     rewardAmount:SetFont("rHitman.Text.Large")
     rewardAmount:SetTextColor(rHitman.UI.Colors.Success)
     rewardAmount:Dock(TOP)

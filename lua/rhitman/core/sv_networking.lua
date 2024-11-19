@@ -44,8 +44,12 @@ local function CanPlaceContract(ply, target, reward)
     if not IsValid(ply) or not IsValid(target) then return false, "Invalid player or target" end
     if ply == target then return false, "You cannot place a contract on yourself" end
     if not ply:canAfford(reward) then return false, "You cannot afford this contract" end
-    if reward < rHitman.Config.MinimumHitPrice then return false, "Reward is below minimum price" end
-    if reward > rHitman.Config.MaximumHitPrice then return false, "Reward exceeds maximum price" end
+    
+    -- Validate reward
+    if not reward then return false, "No reward specified" end
+    if not isnumber(reward) then return false, "Invalid reward amount" end
+    if reward < rHitman.Config.MinimumHitReward then return false, "Reward is below minimum allowed" end
+    if reward > rHitman.Config.MaximumHitReward then return false, "Reward exceeds maximum allowed" end
     
     -- Rate limiting
     if not ply.LastContractPlace then ply.LastContractPlace = 0 end
@@ -75,7 +79,7 @@ local function CanAcceptContract(ply, contractId)
     
     local contract = rHitman.Contracts:GetContract(contractId)
     if not contract then return false, "Invalid contract" end
-    if contract.status ~= "active" then return false, "Contract is not active" end
+    if contract.status ~= "pending" then return false, "Contract is not pending" end
     if contract.contractor == ply:SteamID64() then return false, "You cannot accept your own contract" end
     if contract.target == ply:SteamID64() then return false, "You cannot accept a contract on yourself" end
     
@@ -122,6 +126,43 @@ net.Receive("rHitman.CreateContract", function(len, ply)
     end
 end)
 
+-- Handle contract placement request
+net.Receive("rHitman_PlaceContract", function(len, ply)
+    local targetId = net.ReadString()
+    local reward = net.ReadUInt(32)
+    local description = net.ReadString()
+    
+    -- Get target player
+    local target = player.GetBySteamID64(targetId)
+    if not target then
+        rHitman.Util.notify(ply, "Invalid target player", NOTIFY_ERROR)
+        return
+    end
+    
+    -- Validate contract placement
+    local canPlace, reason = rHitman.Util.canPlaceContract(ply, target, reward)
+    if not canPlace then
+        rHitman.Util.notify(ply, reason, NOTIFY_ERROR)
+        return
+    end
+    
+    -- Create the contract
+    local success, contractId = rHitman.Contracts:Create(ply, target, reward, description)
+    if not success then
+        rHitman.Util.notify(ply, contractId, NOTIFY_ERROR) -- Error message is in contractId
+        return
+    end
+    
+    -- Update last contract time
+    ply.LastContractPlace = CurTime()
+    
+    -- Notify success
+    rHitman.Util.notify(ply, "Contract placed successfully!", NOTIFY_GENERIC)
+    
+    -- Sync contracts with all players
+    rHitman:SyncContracts()
+end)
+
 -- Handle contract acceptance
 net.Receive("rHitman_AcceptContract", function(len, ply)
     if not IsValid(ply) then return end
@@ -140,33 +181,30 @@ net.Receive("rHitman_AcceptContract", function(len, ply)
     if not contract then return end
     
     -- Update contract status
-    contract.status = "active"
-    contract.hitman = ply:SteamID64()
-    contract.hitmanName = ply:Nick()
-    contract.acceptedAt = os.time()
+    local success = rHitman.Contracts:UpdateContract(contractId, {
+        status = "active",
+        hitman = ply:SteamID64(),
+        hitmanName = ply:Nick(),
+        acceptedAt = os.time()
+    })
     
-    -- Update in main contracts table
-    rHitman.Contracts.contracts[contractId] = contract
-    
-    -- Notify relevant players
-    rHitman.Util.notify(ply, "Contract accepted successfully!", NOTIFY_GENERIC)
-    
-    -- Notify the contractor
-    local contractor = player.GetBySteamID64(contract.contractor)
-    if IsValid(contractor) then
-        rHitman.Util.notify(contractor, ply:Nick() .. " has accepted your contract!", NOTIFY_GENERIC)
+    if success then
+        -- Notify relevant players
+        rHitman.Util.notify(ply, "Contract accepted successfully!", NOTIFY_GENERIC)
+        
+        -- Notify contractor if not anonymous
+        if contract.contractor ~= "ANONYMOUS" then
+            local contractor = player.GetBySteamID64(contract.contractor)
+            if IsValid(contractor) then
+                rHitman.Util.notify(contractor, "Your contract has been accepted by a hitman!", NOTIFY_GENERIC)
+            end
+        end
+        
+        -- Sync with all players
+        rHitman:SyncContracts()
+    else
+        rHitman.Util.notify(ply, "Failed to accept contract", NOTIFY_ERROR)
     end
-    
-    -- Sync the updated contract to all clients
-    net.Start("rHitman_ContractUpdate")
-    net.WriteString(contractId)
-    net.WriteString("active")
-    net.WriteString(ply:SteamID64())
-    net.WriteString(ply:Nick())
-    net.Broadcast()
-    
-    -- Run contract accepted hook
-    hook.Run("rHitman_ContractAccepted", contract)
 end)
 
 -- Handle contract cancellation

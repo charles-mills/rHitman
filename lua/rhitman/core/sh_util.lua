@@ -5,20 +5,18 @@
 
 rHitman.Util = rHitman.Util or {}
 
--- Network strings for notifications
 if SERVER then
     util.AddNetworkString("rHitman_Notify")
 end
 
--- Notification types
 rHitman.NotifyType = {
     ERROR = 1,
     GENERIC = 0,
     HINT = 2
 }
 
--- Format money with the configured currency symbol
-function rHitman.formatMoney(amount)
+-- Format currency with the configured currency symbol
+function rHitman.Util.formatCurrency(amount)
     if not amount then return rHitman.Config.CurrencySymbol .. "0" end
     
     -- Format the number with commas
@@ -27,7 +25,6 @@ function rHitman.formatMoney(amount)
     -- Add currency symbol
     return rHitman.Config.CurrencySymbol .. formatted
 end
-
 
 -- Format time duration (e.g. "2h 30m" or "45m 30s")
 function rHitman.Util.formatDuration(seconds)
@@ -204,12 +201,49 @@ if CLIENT then
     end)
 end
 
--- Validate contract price
-function rHitman.Util.validatePrice(price)
-    return price and 
-           type(price) == "number" and 
-           price >= rHitman.Config.MinimumHitPrice and 
-           price <= rHitman.Config.MaximumHitPrice
+-- Contract validation functions
+function rHitman.Util.validateReward(reward)
+    if not reward then return false, "No reward specified" end
+    if not isnumber(reward) then return false, "Invalid reward amount" end
+    if reward < rHitman.Config.MinimumHitReward then return false, "Reward is below minimum allowed" end
+    if reward > rHitman.Config.MaximumHitReward then return false, "Reward exceeds maximum allowed" end
+    return true
+end
+
+function rHitman.Util.validateContract(contract)
+    if not contract then return false, "Invalid contract data" end
+    if not contract.target then return false, "No target specified" end
+    if not contract.reward then return false, "No reward specified" end
+    
+    local success, msg = rHitman.Util.validateReward(contract.reward)
+    if not success then return false, msg end
+    
+    return true
+end
+
+function rHitman.Util.canPlaceContract(ply, target, reward)
+    if not IsValid(ply) or not IsValid(target) then return false, "Invalid player or target" end
+    if ply == target then return false, "You cannot place a contract on yourself" end
+    if not ply:canAfford(reward) then return false, "You cannot afford this contract" end
+    
+    -- Validate reward
+    local success, msg = rHitman.Util.validateReward(reward)
+    if not success then return false, msg end
+    
+    -- Rate limiting
+    if SERVER then
+        if not ply.LastContractPlace then ply.LastContractPlace = 0 end
+        if (CurTime() - ply.LastContractPlace) < rHitman.Config.ContractCooldown then
+            return false, "Please wait before placing another contract"
+        end
+    end
+    
+    -- Check if player can place contracts
+    if not rHitman.Core:CanPlaceContract(ply) then
+        return false, "You are not authorized to place contracts"
+    end
+    
+    return true
 end
 
 -- Generate a unique contract ID

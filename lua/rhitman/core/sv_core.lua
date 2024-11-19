@@ -51,16 +51,19 @@ rHitman.Core = {
             local steamId = ply:SteamID64()
             
             -- Handle active contracts
-            for id, contract in pairs(rHitman.Contracts.contracts) do
-                if contract.status == "active" then
-                    -- Cancel contracts if player can't use system
-                    if not settings.canUseSystem and contract.contractor == steamId then
-                        rHitman.Contracts:Cancel(id, "Contractor changed to restricted job")
-                    end
-                    
-                    -- Fail contracts if player can't complete hits
-                    if not settings.canCompleteHits and contract.hitman == steamId then
-                        rHitman.Contracts:Fail(id, "Hitman changed to non-hitman job")
+            local contracts = rHitman.Contracts:GetAll()
+            if contracts then
+                for id, contract in pairs(contracts) do
+                    if contract.status == "active" then
+                        -- Cancel contracts if player can't use system
+                        if not settings.canUseSystem and contract.contractor == steamId then
+                            rHitman.Contracts:Cancel(id, "Contractor changed to restricted job")
+                        end
+                        
+                        -- Fail contracts if player can't complete hits
+                        if not settings.canCompleteHits and contract.hitman == steamId then
+                            rHitman.Contracts:Cancel(id, "Hitman changed to non-hitman job")
+                        end
                     end
                 end
             end

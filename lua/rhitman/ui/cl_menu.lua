@@ -235,8 +235,15 @@ function PANEL:Paint(w, h)
     -- Background with blur
     Derma_DrawBackgroundBlur(self, 0)
     
-    -- Main background
-    draw.RoundedBox(8, 0, 0, w, h, colors.Surface)
+    -- Main background with sharp top corners and rounded bottom corners
+    surface.SetDrawColor(colors.Surface)
+    
+    -- Draw top rectangle
+    surface.DrawRect(0, 0, w, h - 8)
+    
+    -- Draw bottom rounded corners
+    local bottomCornerSize = 8
+    draw.RoundedBoxEx(bottomCornerSize, 0, h - bottomCornerSize, w, bottomCornerSize, colors.Surface, false, false, true, true)
     
     -- Top accent line
     surface.SetDrawColor(colors.Accent)
