@@ -53,8 +53,8 @@ rHitman.Config = {
     CompassSize = 200,
     HUDScale = 1,
     HUDPosition = {
-        x = 20,
-        y = 20
+        x = 5,
+        y = 5
     },
     
     -- HUD Animation Settings

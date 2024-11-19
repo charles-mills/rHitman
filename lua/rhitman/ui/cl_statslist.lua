@@ -141,7 +141,7 @@ function PANEL:UpdateStats()
     self:CreateStatRow(cStats, "Contracts Created", stats.contractor.contractsCreated or 0)
     self:CreateStatRow(cStats, "Contracts Completed", stats.contractor.contractsCompleted or 0, rHitman.UI.Colors.Success)
     self:CreateStatRow(cStats, "Contracts Failed", stats.contractor.contractsFailed or 0, rHitman.UI.Colors.Danger)
-    self:CreateStatRow(cStats, "Money Spent", "$" .. string.Comma(stats.contractor.moneySpent or 0), rHitman.UI.Colors.Primary)
+    self:CreateStatRow(cStats, "Money Spent", rHitman.Config.CurrencySymbol .. string.Comma(stats.contractor.moneySpent or 0), rHitman.UI.Colors.Primary)
     
     -- Hitman Statistics
     local hitman = self:AddSection("Hitman Statistics")
@@ -156,7 +156,7 @@ function PANEL:UpdateStats()
     
     self:CreateStatRow(hStats, "Contracts Completed", stats.hitman.contractsCompleted or 0, rHitman.UI.Colors.Success)
     self:CreateStatRow(hStats, "Contracts Failed", stats.hitman.contractsFailed or 0, rHitman.UI.Colors.Danger)
-    self:CreateStatRow(hStats, "Money Earned", "$" .. string.Comma(stats.hitman.moneyEarned or 0), rHitman.UI.Colors.Primary)
+    self:CreateStatRow(hStats, "Money Earned", rHitman.Config.CurrencySymbol .. string.Comma(stats.hitman.moneyEarned or 0), rHitman.UI.Colors.Primary)
     self:CreateStatRow(hStats, "Targets Eliminated", stats.hitman.targetsEliminated or 0, rank.color)
 end
 

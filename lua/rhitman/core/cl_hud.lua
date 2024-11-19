@@ -5,116 +5,55 @@
 
 local PANEL = {}
 
--- Colors
-local colors = {
-    background = Color(20, 20, 20, 230),
-    header = Color(220, 50, 50, 255),
-    text = Color(255, 255, 255, 255),
-    subtext = Color(200, 200, 200, 255),
-    warning = Color(255, 100, 100, 255),
-    border = Color(220, 50, 50, 100),
-    highlight = Color(255, 80, 80, 255),
-    shadow = Color(0, 0, 0, 100),
-    health = Color(46, 204, 113),
-    armor = Color(52, 152, 219),
-    headerBg = Color(30, 30, 30, 250),
-    success = Color(46, 204, 113, 255),
-    failure = Color(231, 76, 60, 255)
-}
+-- Colors (using shared UI colors)
+local Colors = rHitman.UI.Colors
 
 -- Contract end states
 local endStates = {
     completed = {
         sound = "buttons/button3.wav",
-        message = "TARGET ELIMINATED",
-        color = colors.success
+        message = "CONTRACT COMPLETED",
+        color = Colors.Success
     },
     failed = {
         sound = "buttons/button10.wav",
         message = "CONTRACT FAILED",
-        color = colors.failure
+        color = Colors.Error
     },
     cancelled = {
         sound = "buttons/button16.wav",
         message = "CONTRACT CANCELLED",
-        color = colors.warning
+        color = Colors.TextDark
     },
     expired = {
         sound = "buttons/button16.wav",
         message = "CONTRACT EXPIRED",
-        color = colors.warning
+        color = Colors.TextDark
     }
 }
 
--- Fonts
-surface.CreateFont("rHitman.HUD.Header", {
-    font = "Roboto",
-    size = 24,
-    weight = 700,
-    antialias = true,
-    shadow = true
-})
-
-surface.CreateFont("rHitman.HUD.Title", {
-    font = "Roboto",
-    size = 22,
-    weight = 600,
-    antialias = true,
-    shadow = true
-})
-
-surface.CreateFont("rHitman.HUD.Info", {
-    font = "Roboto",
-    size = 18,
-    weight = 500,
-    antialias = true,
-    shadow = true
-})
-
-surface.CreateFont("rHitman.HUD.Small", {
-    font = "Roboto",
-    size = 16,
-    weight = 400,
-    antialias = true,
-    shadow = true
-})
-
-surface.CreateFont("rHitman.HUD.Complete", {
-    font = "Roboto",
-    size = 32,
-    weight = 800,
-    antialias = true,
-    shadow = true
-})
-
-surface.CreateFont("rHitman_HUD_Large", {
-    font = "Roboto",
-    size = 36,
-    weight = 800,
-    antialias = true,
-    shadow = true
-})
+-- Scale helper function
+local function Scale(size)
+    return math.Round(size * (ScrH() / 1080) * 0.75)
+end
 
 function PANEL:Init()
-    self:SetSize(300, 180) 
-    self:SetPos(10, ScrH() * 0.3)
+    local width = Scale(300)
+    local height = Scale(200)
+    self:SetSize(width, height)
+    self:SetPos(rHitman.Config.HUDPosition.x, rHitman.Config.HUDPosition.y)
     self.ActiveContract = nil
     self.LastUpdate = 0
     self.FadeAlpha = 255
     self.FadeOutSpeed = 0
     self.HealthLerp = 100
-    self.ArmorLerp = 0
+    self.ArmorLerp = 100
     self.TargetDistance = 0
     self.CompletionState = nil
-    self.CompletionTime = 0
     self.CompletionAnim = 0
-    self.CompletionMessage = ""
+    self.CompletionTime = 0
     self:ParentToHUD()
     self:SetPaintedManually(false)
-end
-
-function PANEL:SetContract(contract)
-    self.ActiveContract = contract
 end
 
 function PANEL:StartCompletion(state)
@@ -129,7 +68,7 @@ function PANEL:StartCompletion(state)
     surface.PlaySound(endStates[state].sound)
     
     -- Start the completion animation
-    local animTime = rHitman.Config.HUDCompletionAnimTime
+    local animTime = rHitman.Config.HUDCompletionAnimTime or 0.5
     local startTime = CurTime()
     
     timer.Create("rHitman_CompletionAnim_" .. self:EntIndex(), 0, 0, function()
@@ -145,42 +84,13 @@ function PANEL:StartCompletion(state)
         if progress >= 1 then
             timer.Remove("rHitman_CompletionAnim_" .. self:EntIndex())
             
-            timer.Simple(rHitman.Config.HUDCompletionHoldTime, function()
+            timer.Simple(rHitman.Config.HUDCompletionHoldTime or 2, function()
                 if IsValid(self) then
-                    self.FadeOutSpeed = rHitman.Config.HUDFadeSpeed
+                    self.FadeOutSpeed = rHitman.Config.HUDFadeSpeed or 5
                 end
             end)
         end
     end)
-end
-
-function PANEL:ShowCompletion(status)
-    self.CompletionState = status
-    self.CompletionTime = CurTime()
-    
-    -- Set completion message
-    if status == "completed" then
-        self.CompletionMessage = "Contract Completed!"
-        surface.PlaySound("buttons/button3.wav")
-    elseif status == "failed" then
-        self.CompletionMessage = "Contract Failed!"
-        surface.PlaySound("buttons/button2.wav")
-    elseif status == "expired" then
-        self.CompletionMessage = "Contract Expired!"
-        surface.PlaySound("buttons/button2.wav")
-    end
-    
-    -- Start fade out after 2 seconds
-    timer.Simple(2, function()
-        if IsValid(self) then
-            self.FadeOutSpeed = rHitman.Config.HUDFadeSpeed or 5
-        end
-    end)
-end
-
-function PANEL:StartFadeOut(fast)
-    self.ActiveContract = nil
-    self.FadeOutSpeed = fast and rHitman.Config.HUDFastFadeSpeed or rHitman.Config.HUDFadeSpeed
 end
 
 function PANEL:Think()
@@ -229,7 +139,6 @@ function PANEL:Think()
 
     -- Update target info if we have a target
     if self.ActiveContract then
-        self.FadeAlpha = math.min(255, self.FadeAlpha + 5)
         local target = player.GetBySteamID64(self.ActiveContract.target)
         if IsValid(target) then
             self.TargetDistance = math.Round(LocalPlayer():GetPos():Distance(target:GetPos()) / 52.49, 1)
@@ -243,7 +152,7 @@ end
 -- Draw a progress bar
 local function DrawBar(x, y, w, h, value, maxValue, color, alpha)
     -- Background
-    draw.RoundedBox(4, x, y, w, h, ColorAlpha(colors.shadow, alpha * 0.5))
+    draw.RoundedBox(4, x, y, w, h, ColorAlpha(Colors.SurfaceLight, alpha))
     
     -- Progress
     local progress = math.Clamp(value / maxValue, 0, 1)
@@ -251,64 +160,69 @@ local function DrawBar(x, y, w, h, value, maxValue, color, alpha)
 end
 
 function PANEL:Paint(w, h)
-    -- If we're in completion state, draw the completion animation
     if self.CompletionState then
+        local state = endStates[self.CompletionState]
+        if not state then return end
+        
         -- Background
-        draw.RoundedBoxEx(8, 0, 0, w, h, ColorAlpha(colors.background, self.FadeAlpha), false, false, true, true)
+        draw.RoundedBox(6, 0, 0, w, h, ColorAlpha(Colors.Background, self.FadeAlpha))
+        
+        -- Message background
+        local messageH = Scale(60)
+        local messageY = h/2 - messageH/2
+        draw.RoundedBox(6, 0, messageY, w, messageH, ColorAlpha(Colors.Surface, self.FadeAlpha))
         
         -- Draw completion message with animation
-        local messageY = h/2 - 20 + (1 - self.CompletionAnim) * 50
+        local textY = messageY + messageH/2 + (1 - self.CompletionAnim) * Scale(20)
         local messageAlpha = self.CompletionAnim * 255
         
-        draw.SimpleText(
-            self.CompletionMessage,
-            "rHitman_HUD_Large",
-            w/2,
-            messageY,
-            ColorAlpha(self.CompletionState == "completed" and colors.success or colors.failure, messageAlpha * (self.FadeAlpha/255)),
-            TEXT_ALIGN_CENTER,
-            TEXT_ALIGN_CENTER
-        )
+        draw.SimpleText(state.message, "rHitman.HUD.Large", w/2, textY, 
+            ColorAlpha(state.color, messageAlpha), 
+            TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
         
         return
     end
 
     if not self.ActiveContract then return end
 
-    -- Main background with rounded bottom corners only
-    draw.RoundedBoxEx(8, 0, 0, w, h, ColorAlpha(colors.background, self.FadeAlpha), false, false, true, true)
+    -- Main background
+    draw.RoundedBox(6, 0, 0, w, h, ColorAlpha(Colors.Background, self.FadeAlpha))
     
-    -- Header background with no rounded corners
-    draw.RoundedBox(0, 0, 0, w, 40, ColorAlpha(colors.headerBg, self.FadeAlpha))
+    -- Header background
+    draw.RoundedBoxEx(Scale(6), 0, 0, w, Scale(40), ColorAlpha(Colors.Surface, self.FadeAlpha), true, true, false, false)
     
     -- Top border accent
-    surface.SetDrawColor(ColorAlpha(colors.highlight, self.FadeAlpha))
-    surface.DrawRect(0, 0, w, 2)
+    surface.SetDrawColor(ColorAlpha(Colors.Primary, self.FadeAlpha))
+    surface.DrawRect(0, 0, w, Scale(2))
 
-    -- rHitman Header
-    draw.SimpleText("rHitman", "rHitman.HUD.Header", w/2, 20, ColorAlpha(colors.highlight, self.FadeAlpha), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+    -- Header text
+    draw.SimpleText("ACTIVE CONTRACT", "rHitman.HUD.Header", w/2, Scale(20), ColorAlpha(Colors.Text, self.FadeAlpha), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 
     -- Target section
-    draw.SimpleText("TARGET", "rHitman.HUD.Small", 15, 55, ColorAlpha(colors.subtext, self.FadeAlpha))
-    draw.SimpleText(player.GetBySteamID64(self.ActiveContract.target):Nick(), "rHitman.HUD.Title", 15, 75, ColorAlpha(colors.text, self.FadeAlpha))
+    local target = player.GetBySteamID64(self.ActiveContract.target)
+    if IsValid(target) then
+        draw.SimpleText("TARGET", "rHitman.Text.Small", Scale(15), Scale(55), ColorAlpha(Colors.TextDark, self.FadeAlpha))
+        draw.SimpleText(target:Nick(), "rHitman.Text.Large", Scale(15), Scale(75), ColorAlpha(Colors.Text, self.FadeAlpha))
 
-    -- Distance
-    local distStr = string.format("Distance: %.1f meters", self.TargetDistance)
-    draw.SimpleText(distStr, "rHitman.HUD.Small", w - 15, 55, ColorAlpha(colors.subtext, self.FadeAlpha), TEXT_ALIGN_RIGHT)
+        -- Distance
+        local distStr = string.format("%.1fm away", self.TargetDistance)
+        draw.SimpleText(distStr, "rHitman.Text.Small", w - Scale(15), Scale(75), ColorAlpha(Colors.TextDark, self.FadeAlpha), TEXT_ALIGN_RIGHT)
 
-    -- Health and Armor bars
-    local barWidth = w - 30
-    local barHeight = 8
+        -- Health and Armor bars
+        local barWidth = w - Scale(30)
+        local barHeight = Scale(12)
+        local padding = Scale(15)
 
-    -- Health Bar
-    draw.SimpleText("Health", "rHitman.HUD.Small", 15, 105, ColorAlpha(colors.subtext, self.FadeAlpha))
-    DrawBar(15, 125, barWidth, barHeight, self.HealthLerp, 100, colors.health, self.FadeAlpha)
-    draw.SimpleText(math.Round(self.HealthLerp) .. "%", "rHitman.HUD.Small", w - 15, 122, ColorAlpha(colors.text, self.FadeAlpha), TEXT_ALIGN_RIGHT)
+        -- Health Bar
+        draw.SimpleText("Health", "rHitman.Text.Small", padding, Scale(105), ColorAlpha(Colors.TextDark, self.FadeAlpha))
+        DrawBar(padding, Scale(125), barWidth, barHeight, self.HealthLerp, 100, Colors.Health, self.FadeAlpha)
+        draw.SimpleText(math.Round(self.HealthLerp) .. "%", "rHitman.Text.Small", w - padding, Scale(125) + barHeight/2, ColorAlpha(Colors.Text, self.FadeAlpha), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 
-    -- Armor Bar
-    draw.SimpleText("Armor", "rHitman.HUD.Small", 15, 140, ColorAlpha(colors.subtext, self.FadeAlpha))
-    DrawBar(15, 160, barWidth, barHeight, self.ArmorLerp, 100, colors.armor, self.FadeAlpha)
-    draw.SimpleText(math.Round(self.ArmorLerp) .. "%", "rHitman.HUD.Small", w - 15, 157, ColorAlpha(colors.text, self.FadeAlpha), TEXT_ALIGN_RIGHT)
+        -- Armor Bar
+        draw.SimpleText("Armor", "rHitman.Text.Small", padding, Scale(145), ColorAlpha(Colors.TextDark, self.FadeAlpha))
+        DrawBar(padding, Scale(165), barWidth, barHeight, self.ArmorLerp, 100, Colors.Armor, self.FadeAlpha)
+        draw.SimpleText(math.Round(self.ArmorLerp) .. "%", "rHitman.Text.Small", w - padding, Scale(165) + barHeight/2, ColorAlpha(Colors.Text, self.FadeAlpha), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+    end
 end
 
 -- Create HUD when player spawns
@@ -318,13 +232,18 @@ hook.Add("InitPostEntity", "rHitman.CreateHUD", function()
 end)
 
 -- Update HUD when contracts change
-hook.Add("rHitman.ContractUpdated", "rHitman_HUD_ContractUpdate", function(contract)
+hook.Add("rHitman.ContractsUpdated", "rHitman_HUD_ContractUpdate", function()
     if not IsValid(rHitman.HUD) then return end
-    if contract.hitman ~= LocalPlayer():SteamID64() then return end
     
-    -- Check if contract ended
-    if contract.status == "completed" or contract.status == "failed" or contract.status == "expired" then
-        rHitman.HUD:ShowCompletion(contract.status)
+    -- Check if our active contract was completed/failed/cancelled
+    if rHitman.ActiveContract then
+        local contract = rHitman.Contracts:GetContract(rHitman.ActiveContract.id)
+        if contract and contract.hitman == LocalPlayer():SteamID64() then
+            if contract.status ~= "active" then
+                rHitman.HUD:StartCompletion(contract.status)
+                rHitman.ActiveContract = nil
+            end
+        end
     end
 end)
 
@@ -335,7 +254,6 @@ hook.Add("rHitman.ContractAccepted", "rHitman.ShowHUD", function(contract)
     end
     
     if contract.hitman == LocalPlayer():SteamID64() then
-        rHitman.HUD:SetContract(contract)
         rHitman.ActiveContract = contract
     end
 end)
@@ -344,6 +262,7 @@ end)
 hook.Add("PlayerDeath", "rHitman_CleanupHUD", function(victim)
     if victim == LocalPlayer() and IsValid(rHitman.HUD) then
         rHitman.HUD:StartCompletion("failed")
+        rHitman.ActiveContract = nil
     end
 end)
 

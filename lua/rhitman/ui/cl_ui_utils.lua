@@ -41,7 +41,9 @@ rHitman.UI.Colors = {
     Success = Color(67, 181, 129),     -- Modern Green
     Error = Color(240, 71, 71),        -- Modern Red
     Warning = Color(255, 188, 66),     -- Modern Orange
-    Accent = Color(79, 91, 213)        -- Same as Primary for consistency
+    Accent = Color(79, 91, 213),       -- Same as Primary for consistency
+    Health = Color(67, 181, 129),      -- Same as Success for health bar
+    Armor = Color(79, 91, 213)         -- Same as Primary for armor bar
 }
 
 -- Font utility functions
