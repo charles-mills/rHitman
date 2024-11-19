@@ -1,409 +1,353 @@
 --[[
     rHitman - Server Contracts
-    Handles contract management and operations
+    Handles all contract-related operations and storage
 ]]--
 
--- Initialize contract table if not exists
 rHitman = rHitman or {}
-rHitman.Contracts = rHitman.Contracts or {}
-rHitman.Contracts.contracts = rHitman.Contracts.contracts or {}
-
--- Get all contracts
-rHitman.Contracts.GetAll = function(self)
-    local contracts = {}
-    -- Debug print
-    print("[rHitman] Getting all contracts, count:", table.Count(self.contracts))
-    for id, contract in pairs(self.contracts) do
-        print("[rHitman] Found contract:", id)
+rHitman.Contracts = {
+    contracts = {}, -- Single source of truth for contracts
+    
+    -- Money handling helpers
+    HandleMoney = function(self, ply, amount, isAdd)
+        if not IsValid(ply) or not isnumber(amount) then return false end
+        if amount < 0 then return false end
         
-        -- Deep copy the contract to prevent reference issues
-        local contractCopy = table.Copy(contract)
-        
-        -- Update names if players are still on server
-        local contractorPly = player.GetBySteamID64(contractCopy.contractor)
-        if IsValid(contractorPly) then
-            contractCopy.contractorName = contractorPly:Nick()
-        end
-        
-        local targetPly = player.GetBySteamID64(contractCopy.target)
-        if IsValid(targetPly) then
-            contractCopy.targetName = targetPly:Nick()
-            contractCopy.targetJob = targetPly:getDarkRPVar("job") or "Unknown"
-        end
-        
-        -- Store with ID as key
-        contracts[id] = contractCopy
-    end
-    return contracts
-end
-
--- Get specific contract
-rHitman.Contracts.GetContract = function(self, id)
-    local contract = self.contracts[id]
-    if contract then
-        -- Deep copy the contract
-        contract = table.Copy(contract)
-        
-        -- Update names
-        local contractorPly = player.GetBySteamID64(contract.contractor)
-        if IsValid(contractorPly) then
-            contract.contractorName = contractorPly:Nick()
-        end
-        
-        local targetPly = player.GetBySteamID64(contract.target)
-        if IsValid(targetPly) then
-            contract.targetName = targetPly:Nick()
-            contract.targetJob = targetPly:getDarkRPVar("job") or "Unknown"
-        end
-    end
-    return contract
-end
-
--- Get active contracts for hitman
-rHitman.Contracts.GetActiveContractsForHitman = function(self, steamID64)
-    local active = {}
-    for _, contract in pairs(self.contracts) do
-        if contract.hitman == steamID64 and contract.status == "active" then
-            table.insert(active, contract)
-        end
-    end
-    return active
-end
-
--- Create contract
-rHitman.Contracts.Create = function(self, contractor, target, reward, duration)
-    if not IsValid(contractor) or not IsValid(target) then
-        return false, "Invalid contractor or target"
-    end
-    
-    -- Prevent self-contracts
-    if contractor:SteamID64() == target:SteamID64() then
-        return false, "Cannot place contract on yourself"
-    end
-    
-    -- Generate contract ID
-    local contractId = os.time() .. "_" .. math.random(10000, 99999) .. "_" .. string.format("%04d", math.random(0, 9999))
-    
-    -- Create contract data
-    local contract = {
-        id = contractId,
-        contractor = contractor:SteamID64(),
-        contractorName = contractor:Nick(),
-        target = target:SteamID64(),
-        targetName = target:Nick(),
-        targetJob = target:getDarkRPVar("job") or "Unknown",
-        reward = reward,
-        status = "active",
-        created = os.time(),
-        expires = duration and (os.time() + duration) or nil
-    }
-    
-    -- Store contract
-    self.contracts[contractId] = contract
-    
-    -- Print debug info
-    print("[rHitman] Created contract:", contractId)
-    print("[rHitman] Contract count:", table.Count(self.contracts))
-    
-    -- Notify players
-    hook.Run("rHitman.ContractCreated", contract)
-    
-    return true, contractId
-end
-
--- Contract status helpers
-local function isValidStatus(status)
-    return table.HasValue({"active", "completed", "failed", "cancelled", "expired"}, status)
-end
-
--- Contract validation
-local function validateContract(contract)
-    if not contract then return false, "Invalid contract data" end
-    if not contract.target then return false, "No target specified" end
-    if not contract.reward then return false, "No reward specified" end
-    if contract.reward < rHitman.Config.MinimumHitPrice then return false, "Reward too low" end
-    if contract.reward > rHitman.Config.MaximumHitPrice then return false, "Reward too high" end
-    return true
-end
-
--- Helper function to count active contracts for a player
-local function countActiveContracts(steamID64, asHitman)
-    local count = 0
-    for _, contract in pairs(rHitman.Contracts.contracts) do
-        if contract.status == "active" then
-            if asHitman then
-                if contract.hitman == steamID64 then
-                    count = count + 1
-                end
-            else
-                if contract.contractor == steamID64 then
-                    count = count + 1
-                end
-            end
-        end
-    end
-    return count
-end
-
--- Accept a contract
-function rHitman:AcceptContract(contractId, hitman)
-    if not self.Contracts then self.Contracts = {} end
-    if not self.Contracts.contracts then self.Contracts.contracts = {} end
-    
-    local contract = self.Contracts.contracts[contractId]
-    if not contract then 
-        print("[rHitman] Contract not found:", contractId)
-        return false, "Contract not found" 
-    end
-    if not IsValid(hitman) then 
-        return false, "Invalid hitman" 
-    end
-    
-    -- Verify contract status
-    if contract.status ~= "active" then
-        return false, "Contract is not active"
-    end
-    
-    -- Verify hitman is not the target
-    if contract.target == hitman:SteamID64() then
-        return false, "You cannot accept a contract on yourself"
-    end
-    
-    -- Verify hitman is not the contractor
-    if contract.contractor == hitman:SteamID64() then
-        return false, "You cannot accept your own contract"
-    end
-    
-    -- Check if hitman has too many active contracts
-    local activeCount = 0
-    for _, c in pairs(self.Contracts.contracts) do
-        if c.hitman == hitman:SteamID64() and c.status == "active" then
-            activeCount = activeCount + 1
-        end
-    end
-    
-    if activeCount >= (rHitman.Config.MaxActiveContractsPerHitman or 1) then
-        return false, "You have too many active contracts"
-    end
-    
-    -- Accept the contract
-    contract.hitman = hitman:SteamID64()
-    contract.hitmanName = hitman:Nick()
-    contract.acceptedAt = os.time()
-    
-    -- Notify relevant players
-    local contractor = player.GetBySteamID64(contract.contractor)
-    if IsValid(contractor) then
-        DarkRP.notify(contractor, 0, 4, hitman:Nick() .. " has accepted your contract on " .. contract.targetName)
-    end
-    
-    -- Run hook
-    hook.Run("rHitman.ContractAccepted", contract, hitman)
-    
-    -- Sync contract update to all clients
-    net.Start("rHitman_ContractUpdate")
-    net.WriteString(contractId)
-    net.WriteString("accepted")
-    net.WriteString(hitman:SteamID64())
-    net.WriteString(hitman:Nick())
-    net.Broadcast()
-    
-    return true
-end
-
--- Complete a contract
-function rHitman:CompleteContract(contractId, hitman)
-    local contract = rHitman.Contracts.contracts[contractId]
-    if not contract then return false, "Contract not found" end
-    if not IsValid(hitman) then return false, "Invalid hitman" end
-    
-    -- Verify hitman
-    if contract.hitman ~= hitman:SteamID64() then
-        return false, "Not your contract"
-    end
-    
-    -- Update contract
-    contract.status = "completed"
-    contract.timeCompleted = os.time()
-    
-    -- Pay the hitman
-    hitman:addMoney(contract.reward)
-    
-    -- Sync to clients
-    rHitman:SyncContracts()
-    
-    return true
-end
-
--- Cancel a contract
-function rHitman:CancelContract(contractId, reason)
-    local contract = rHitman.Contracts.contracts[contractId]
-    if not contract then return false, "Contract not found" end
-    
-    -- Update contract
-    contract.status = "cancelled"
-    contract.timeCancelled = os.time()
-    contract.cancelReason = reason
-    
-    -- Notify players
-    local hitman = Player(contract.hitman)
-    if IsValid(hitman) then
-        DarkRP.notify(hitman, 1, 4, "Contract cancelled: " .. reason)
-    end
-    
-    -- Sync to clients
-    rHitman:SyncContracts()
-    
-    return true
-end
-
--- Fail a contract
-function rHitman:FailContract(contractId, reason)
-    local contract = rHitman.Contracts.contracts[contractId]
-    if not contract then return false, "Contract not found" end
-    
-    -- Update contract
-    contract.status = "failed"
-    contract.timeFailed = os.time()
-    contract.failReason = reason
-    
-    -- Notify players
-    local contractor = Player(contract.contractor)
-    if IsValid(contractor) then
-        DarkRP.notify(contractor, 1, 4, "Contract failed: " .. reason)
-    end
-    
-    -- Sync to clients
-    rHitman:SyncContracts()
-    
-    return true
-end
-
--- Expire a contract
-function rHitman:ExpireContract(contractId)
-    local contract = rHitman.Contracts.contracts[contractId]
-    if not contract then return false, "Contract not found" end
-    
-    -- Update contract
-    contract.status = "expired"
-    contract.timeExpired = os.time()
-    
-    -- Sync to clients
-    rHitman:SyncContracts()
-    
-    return true
-end
-
--- Get all contracts
-function rHitman:GetContracts()
-    return rHitman.Contracts.GetAll(rHitman.Contracts)
-end
-
--- Get active contracts for a player (as hitman)
-function rHitman:GetActiveContractsForHitman(steamId)
-    return rHitman.Contracts.GetActiveContractsForHitman(rHitman.Contracts, steamId)
-end
-
--- Get contracts on a target
-function rHitman:GetContractsOnTarget(steamId)
-    local targetContracts = {}
-    for id, contract in pairs(rHitman.Contracts.contracts) do
-        if contract.target == steamId and contract.status == "active" then
-            targetContracts[id] = contract
-        end
-    end
-    return targetContracts
-end
-
--- End a contract with a specific result
-function rHitman.Contracts:EndContract(contract, result)
-    if not contract then return end
-    
-    print("[rHitman] Ending contract", contract.id, "with result:", result)
-    
-    -- Update contract status based on result
-    contract.status = result
-    contract.completedAt = os.time()
-    
-    -- Update the contract in the main contracts table
-    self.contracts[contract.id] = contract
-    
-    -- Get hitman player
-    local hitman = player.GetBySteamID64(contract.hitman)
-    if IsValid(hitman) then
-        -- Pay the hitman if successful
-        if result == "completed" then
-            hitman:addMoney(contract.reward)
-            DarkRP.notify(hitman, 0, 6, "Contract completed! You earned " .. rHitman.Config.CurrencySymbol .. contract.reward)
+        if isAdd then
+            return ply:addMoney(amount)
         else
-            DarkRP.notify(hitman, 1, 6, "Contract failed!")
+            if not ply:canAfford(amount) then return false end
+            return ply:addMoney(-amount)
         end
-    end
+    end,
     
-    -- Notify contractor
-    local contractor = player.GetBySteamID64(contract.contractor)
-    if IsValid(contractor) then
-        if result == "completed" then
-            DarkRP.notify(contractor, 0, 6, "Your contract has been completed by " .. contract.hitmanName)
-        else
-            DarkRP.notify(contractor, 1, 6, "Your contract has failed!")
-            -- Refund the contractor if the contract failed
-            contractor:addMoney(contract.reward)
+    -- Validation helpers
+    ValidatePrice = function(self, price)
+        if not isnumber(price) then return false end
+        return price >= rHitman.Config.MinimumHitPrice and price <= rHitman.Config.MaximumHitPrice
+    end,
+    
+    ValidateContract = function(self, contract)
+        if not contract then return false, "Invalid contract data" end
+        if not contract.target then return false, "No target specified" end
+        if not contract.reward then return false, "No reward specified" end
+        if not self:ValidatePrice(contract.reward) then return false, "Invalid reward amount" end
+        return true
+    end,
+    
+    -- Core operations
+    Create = function(self, contractor, target, price, description)
+        if not IsValid(contractor) or not IsValid(target) then 
+            return false, "Invalid player" 
         end
-    end
-    
-    -- Sync the updated contract to all clients
-    net.Start("rHitman_ContractUpdate")
-    net.WriteString(contract.id)
-    net.WriteString(contract.status)
-    net.WriteString(contract.hitman or "")
-    net.WriteString(contract.hitmanName or "")
-    net.Broadcast()
-    
-    -- Run contract ended hook
-    hook.Run("rHitman_ContractEnded", contract)
-end
-
--- Hook for when a player dies
-hook.Add("PlayerDeath", "rHitman_ContractEndConditions", function(victim, inflictor, attacker)
-    -- Get all active contracts
-    for id, contract in pairs(rHitman.Contracts:GetAll()) do
-        if contract.status ~= "active" then continue end
         
-        -- Check if target died
-        if victim:SteamID64() == contract.target then
-            -- If killed by the hitman, complete the contract
-            if IsValid(attacker) and attacker:IsPlayer() and attacker:SteamID64() == contract.hitman then
-                rHitman.Contracts:EndContract(rHitman.Contracts.contracts[id], "completed")
-            else
-                -- Target died but not by hitman
-                rHitman.Contracts:EndContract(rHitman.Contracts.contracts[id], "failed")
+        if not rHitman.Core:CanPlaceContract(contractor) then
+            return false, "You are not authorized to place contracts"
+        end
+        
+        if contractor:SteamID64() == target:SteamID64() then
+            return false, "You cannot place a contract on yourself"
+        end
+        
+        if not self:ValidatePrice(price) then
+            return false, "Invalid contract price"
+        end
+        
+        -- Take payment if configured
+        if not rHitman.Config.PaymentOnCompletion then
+            if not self:HandleMoney(contractor, price, false) then
+                return false, "Insufficient funds"
             end
         end
         
-        -- Check if hitman died (if enabled in config)
-        if rHitman.Config.EndOnHitmanDeath and victim:SteamID64() == contract.hitman then
-            rHitman.Contracts:EndContract(rHitman.Contracts.contracts[id], "failed")
+        -- Generate contract ID
+        local contractId = os.time() .. "_" .. math.random(10000, 99999)
+        
+        -- Create contract data
+        local contract = {
+            id = contractId,
+            contractor = contractor:SteamID64(),
+            contractorName = contractor:Nick(),
+            target = target:SteamID64(),
+            targetName = target:Nick(),
+            targetJob = target:getDarkRPVar("job") or "Unknown",
+            price = price,
+            description = description,
+            status = "active",
+            timeCreated = os.time(),
+            timeExpires = os.time() + rHitman.Config.ContractDuration,
+            hitman = nil,
+            hitmanName = nil,
+            evidence = nil,
+            paid = not rHitman.Config.PaymentOnCompletion
+        }
+        
+        -- Store contract
+        self.contracts[contractId] = contract
+        
+        -- Set cooldown
+        contractor:SetNWFloat("rHitman_LastContract", CurTime())
+        
+        -- Notify hitmen if enabled
+        if rHitman.Config.NotifyHitmanNewContract then
+            for _, ply in ipairs(player.GetAll()) do
+                if rHitman.Core:CanCompleteHits(ply) and ply != contractor then
+                    rHitman.Util.notify(ply, "A new contract worth " .. rHitman.Util.formatCurrency(price) .. " is available!", NOTIFY_HINT)
+                end
+            end
         end
+        
+        -- Run hook
+        hook.Run("rHitman.ContractCreated", contract)
+        
+        return true, contractId
+    end,
+    
+    Accept = function(self, contractId, hitman)
+        local contract = self.contracts[contractId]
+        if not contract then return false, "Contract not found" end
+        if not IsValid(hitman) then return false, "Invalid hitman" end
+        
+        -- Verify contract status
+        if contract.status ~= "active" then
+            return false, "Contract is not active"
+        end
+        
+        -- Verify hitman is not the target or contractor
+        if contract.target == hitman:SteamID64() then
+            return false, "You cannot accept a contract on yourself"
+        end
+        if contract.contractor == hitman:SteamID64() then
+            return false, "You cannot accept your own contract"
+        end
+        
+        -- Check active contract limit
+        local activeCount = 0
+        for _, c in pairs(self.contracts) do
+            if c.hitman == hitman:SteamID64() and c.status == "active" then
+                activeCount = activeCount + 1
+            end
+        end
+        
+        if activeCount >= rHitman.Config.MaxActiveContractsPerHitman then
+            return false, "You have too many active contracts"
+        end
+        
+        -- Accept the contract
+        contract.hitman = hitman:SteamID64()
+        contract.hitmanName = hitman:Nick()
+        contract.timeAccepted = os.time()
+        
+        -- Notify relevant players
+        local contractor = player.GetBySteamID64(contract.contractor)
+        if IsValid(contractor) then
+            rHitman.Util.notify(contractor, hitman:Nick() .. " has accepted your contract on " .. contract.targetName, NOTIFY_GENERIC)
+        end
+        
+        -- Run hook
+        hook.Run("rHitman.ContractAccepted", contract, hitman)
+        
+        return true
+    end,
+    
+    Complete = function(self, contractId, hitman, evidence)
+        local contract = self.contracts[contractId]
+        if not contract then return false, "Contract not found" end
+        if not IsValid(hitman) then return false, "Invalid hitman" end
+        
+        if not rHitman.Core:CanCompleteHits(hitman) then
+            return false, "You are not authorized to complete contracts"
+        end
+        
+        if contract.status ~= "active" then
+            return false, "Contract is not active"
+        end
+        
+        -- Handle payment
+        if rHitman.Config.PaymentOnCompletion then
+            local contractor = player.GetBySteamID64(contract.contractor)
+            if not IsValid(contractor) then
+                return false, "Contractor not found"
+            end
+            
+            if not self:HandleMoney(contractor, contract.price, false) then
+                return false, "Contractor cannot afford the contract"
+            end
+        end
+        
+        -- Pay the hitman
+        if not self:HandleMoney(hitman, contract.price, true) then
+            -- If payment fails and we took money from contractor, refund them
+            if rHitman.Config.PaymentOnCompletion then
+                local contractor = player.GetBySteamID64(contract.contractor)
+                if IsValid(contractor) then
+                    self:HandleMoney(contractor, contract.price, true)
+                end
+            end
+            return false, "Failed to pay hitman"
+        end
+        
+        -- Update contract
+        contract.status = "completed"
+        contract.evidence = evidence
+        contract.timeCompleted = os.time()
+        
+        -- Run hook
+        hook.Run("rHitman.ContractCompleted", contract)
+        
+        return true
+    end,
+    
+    Fail = function(self, contractId, reason)
+        local contract = self.contracts[contractId]
+        if not contract then return false, "Contract not found" end
+        
+        if rHitman.Config.ReturnFailedHitsToPool then
+            -- Reset hitman and return to pool
+            contract.hitman = nil
+            contract.hitmanName = nil
+            contract.status = "active"
+            contract.timeAccepted = nil
+        else
+            -- Remove contract entirely
+            contract.status = "failed"
+            contract.failReason = reason
+            contract.timeEnded = os.time()
+        end
+        
+        -- Notify relevant players
+        local contractor = player.GetBySteamID64(contract.contractor)
+        if IsValid(contractor) then
+            rHitman.Util.notify(contractor, "Contract " .. (rHitman.Config.ReturnFailedHitsToPool and "returned to pool" or "failed") .. ": " .. reason, NOTIFY_ERROR)
+        end
+        
+        -- Run hook
+        hook.Run("rHitman.ContractFailed", contract, reason)
+        
+        return true
+    end,
+    
+    Cancel = function(self, contractId, reason)
+        local contract = self.contracts[contractId]
+        if not contract then return false, "Contract not found" end
+        
+        contract.status = "cancelled"
+        contract.cancelReason = reason
+        contract.timeEnded = os.time()
+        
+        -- Refund if payment was made upfront
+        if not rHitman.Config.PaymentOnCompletion then
+            local contractor = player.GetBySteamID64(contract.contractor)
+            if IsValid(contractor) then
+                self:HandleMoney(contractor, contract.price, true)
+            end
+        end
+        
+        -- Run hook
+        hook.Run("rHitman.ContractCancelled", contract, reason)
+        
+        return true
+    end,
+    
+    Expire = function(self, contractId)
+        local contract = self.contracts[contractId]
+        if not contract then return false, "Contract not found" end
+        
+        contract.status = "expired"
+        contract.timeEnded = os.time()
+        
+        -- Refund if payment was made upfront
+        if not rHitman.Config.PaymentOnCompletion then
+            local contractor = player.GetBySteamID64(contract.contractor)
+            if IsValid(contractor) then
+                self:HandleMoney(contractor, contract.price, true)
+            end
+        end
+        
+        -- Run hook
+        hook.Run("rHitman.ContractExpired", contract)
+        
+        return true
+    end,
+    
+    -- Contract getters
+    GetContract = function(self, contractId)
+        return self.contracts[contractId]
+    end,
+    
+    GetActiveContractsForHitman = function(self, hitmanId)
+        local active = {}
+        for id, contract in pairs(self.contracts) do
+            if contract.hitman == hitmanId and contract.status == "active" then
+                active[id] = table.Copy(contract)
+            end
+        end
+        return active
+    end,
+    
+    -- Queries
+    GetAll = function(self)
+        local contracts = {}
+        for id, contract in pairs(self.contracts) do
+            -- Deep copy the contract
+            local contractCopy = table.Copy(contract)
+            
+            -- Update names if players are still on server
+            local contractorPly = player.GetBySteamID64(contractCopy.contractor)
+            if IsValid(contractorPly) then
+                contractCopy.contractorName = contractorPly:Nick()
+            end
+            
+            local targetPly = player.GetBySteamID64(contractCopy.target)
+            if IsValid(targetPly) then
+                contractCopy.targetName = targetPly:Nick()
+                contractCopy.targetJob = targetPly:getDarkRPVar("job") or "Unknown"
+            end
+            
+            contracts[id] = contractCopy
+        end
+        return contracts
+    end,
+    
+    GetActive = function(self)
+        local active = {}
+        for id, contract in pairs(self.contracts) do
+            if contract.status == "active" then
+                active[id] = table.Copy(contract)
+            end
+        end
+        return active
+    end,
+    
+    GetForHitman = function(self, steamID64)
+        local hitmanContracts = {}
+        for id, contract in pairs(self.contracts) do
+            if contract.hitman == steamID64 then
+                hitmanContracts[id] = table.Copy(contract)
+            end
+        end
+        return hitmanContracts
+    end,
+    
+    GetForContractor = function(self, steamID64)
+        local contractorContracts = {}
+        for id, contract in pairs(self.contracts) do
+            if contract.contractor == steamID64 then
+                contractorContracts[id] = table.Copy(contract)
+            end
+        end
+        return contractorContracts
     end
-end)
+}
 
--- Hook for when a contract is accepted
-hook.Add("rHitman_ContractAccepted", "rHitman_ContractTimer", function(contract)
-    -- Start timer for contract expiration
-    timer.Create("rHitman_ContractTimer_" .. contract.id, rHitman.Config.ContractTimeLimit, 1, function()
-        -- Check if contract is still active
-        contract = rHitman.Contracts:GetContract(contract.id)
-        if contract and contract.status == "active" then
-            rHitman.Contracts:EndContract(contract, "expired")
+-- Initialize hooks
+hook.Add("Initialize", "rHitman_ContractsInit", function()
+    -- Check for expired contracts periodically
+    timer.Create("rHitman_ContractExpiration", 60, 0, function()
+        local currentTime = os.time()
+        for id, contract in pairs(rHitman.Contracts.contracts) do
+            if contract.status == "active" and contract.timeExpires and currentTime >= contract.timeExpires then
+                rHitman.Contracts:Expire(id)
+            end
         end
     end)
-end)
-
--- Hook for when a contract ends
-hook.Add("rHitman_ContractEnded", "rHitman_CleanupTimer", function(contract)
-    -- Clean up the timer
-    if timer.Exists("rHitman_ContractTimer_" .. contract.id) then
-        timer.Remove("rHitman_ContractTimer_" .. contract.id)
-    end
 end)

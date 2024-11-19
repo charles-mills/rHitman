@@ -106,7 +106,7 @@ function rHitman.UI.CreatePlayerCard(parent, ply, isSelected, onClick)
     -- Player Job
     local job = vgui.Create("DLabel", info)
     job:SetText(team.GetName(ply:Team()))
-    job:SetFont("rHitman.Small")
+    job:SetFont("rHitman.Text.Small")
     job:SetTextColor(rHitman.UI.Colors.TextDark)
     job:Dock(TOP)
     job:DockMargin(0, 2, 0, 0)

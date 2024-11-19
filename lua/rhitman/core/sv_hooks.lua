@@ -35,7 +35,7 @@ hook.Add("PlayerDisconnected", "rHitman_ContractCleanup", function(ply)
         
         -- Fail contracts where the disconnected player is the hitman
         if contract.status == "active" and contract.hitman == steamId then
-            rHitman:FailContract(contractId, "Hitman disconnected")
+            rHitman.failContract(contractId, "Hitman disconnected")
         end
     end
 end)

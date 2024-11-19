@@ -128,41 +128,51 @@ function PANEL:Init()
     end
     
     -- Create contract button (highlighted)
-    self.CreateContractBtn = CreateStyledButton("Place Contract", "icon16/add.png")
-    self.CreateContractBtn:SetParent(self.Sidebar)
-    self.CreateContractBtn:Dock(TOP)
-    self.CreateContractBtn:DockMargin(10, 10, 10, 5)
-    
-    self.CreateContractBtn.DoClick = function()
-        self:ClearContent()
-        local contractCreate = vgui.Create("rHitman.ContractCreate", self.Content)
-        if IsValid(contractCreate) then
-            contractCreate:Dock(FILL)
-            contractCreate:InvalidateLayout(true)
-        else
-            ErrorNoHalt("[rHitman] Failed to create contract panel!\n")
+    if rHitman.Util.canUseSystem(LocalPlayer()) and not rHitman.Util.isHitman(LocalPlayer()) then
+        self.CreateContractBtn = CreateStyledButton("Place Contract", "icon16/add.png")
+        self.CreateContractBtn:SetParent(self.Sidebar)
+        self.CreateContractBtn:Dock(TOP)
+        self.CreateContractBtn:DockMargin(10, 10, 10, 5)
+        
+        self.CreateContractBtn.DoClick = function()
+            self:ClearContent()
+            local contractCreate = vgui.Create("rHitman.ContractCreate", self.Content)
+            if IsValid(contractCreate) then
+                contractCreate:Dock(FILL)
+                contractCreate:InvalidateLayout(true)
+            else
+                ErrorNoHalt("[rHitman] Failed to create contract panel!\n")
+            end
+        end
+        
+        -- Add separator after create button
+        local separator = vgui.Create("DPanel", self.Sidebar)
+        separator:Dock(TOP)
+        separator:SetTall(1)
+        separator:DockMargin(10, 5, 10, 5)
+        separator.Paint = function(s, w, h)
+            surface.SetDrawColor(ColorAlpha(colors.Text, 50))
+            surface.DrawRect(0, 0, w, h)
         end
     end
     
     -- Navigation buttons
-    local navButtons = {
-        {text = "Available Contracts", icon = "icon16/book.png", panel = "rHitman.ContractList"},
-        {text = "My Contracts", icon = "icon16/user.png"},
-        {text = "Active Contract", icon = "icon16/star.png"},
-        {text = "Statistics", icon = "icon16/chart_bar.png", panel = "rHitman.StatsList"},
-        {text = "Settings", icon = "icon16/cog.png"}
-    }
+    local navButtons = {}
     
-    -- Add separator after create button
-    local separator = vgui.Create("DPanel", self.Sidebar)
-    separator:Dock(TOP)
-    separator:SetTall(1)
-    separator:DockMargin(10, 5, 10, 5)
-    separator.Paint = function(s, w, h)
-        surface.SetDrawColor(ColorAlpha(colors.Text, 50))
-        surface.DrawRect(0, 0, w, h)
+    -- Only show contract-related options if player can use the system
+    if rHitman.Util.canUseSystem(LocalPlayer()) then
+        if rHitman.Util.isHitman(LocalPlayer()) then
+            table.insert(navButtons, {text = "Available Contracts", icon = "icon16/book.png", panel = "rHitman.ContractList"})
+            table.insert(navButtons, {text = "Active Contract", icon = "icon16/star.png"})
+        end
+        table.insert(navButtons, {text = "My Contracts", icon = "icon16/user.png"})
     end
     
+    -- Always show these options
+    table.insert(navButtons, {text = "Statistics", icon = "icon16/chart_bar.png", panel = "rHitman.StatsList"})
+    table.insert(navButtons, {text = "Settings", icon = "icon16/cog.png"})
+    
+    -- Create navigation buttons
     for _, btn in ipairs(navButtons) do
         local navBtn = CreateStyledButton(btn.text, btn.icon)
         navBtn:SetParent(self.Sidebar)
@@ -181,12 +191,29 @@ function PANEL:Init()
         end
     end
     
-    -- Load default panel (Available Contracts)
+    -- Load default panel based on player's role and permissions
     self:ClearContent()
-    local contractList = vgui.Create("rHitman.ContractList", self.Content)
-    if IsValid(contractList) then
-        contractList:Dock(FILL)
-        contractList:DockMargin(5, 5, 5, 5)
+    if rHitman.Util.isHitman(LocalPlayer()) then
+        -- Show contract list for hitmen
+        local contractList = vgui.Create("rHitman.ContractList", self.Content)
+        if IsValid(contractList) then
+            contractList:Dock(FILL)
+            contractList:DockMargin(5, 5, 5, 5)
+        end
+    elseif rHitman.Util.canUseSystem(LocalPlayer()) then
+        -- Show contract creation for non-hitmen who can use the system
+        local contractCreate = vgui.Create("rHitman.ContractCreate", self.Content)
+        if IsValid(contractCreate) then
+            contractCreate:Dock(FILL)
+            contractCreate:DockMargin(5, 5, 5, 5)
+        end
+    else
+        -- Show statistics for everyone else
+        local stats = vgui.Create("rHitman.StatsList", self.Content)
+        if IsValid(stats) then
+            stats:Dock(FILL)
+            stats:DockMargin(5, 5, 5, 5)
+        end
     end
 end
 

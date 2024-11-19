@@ -36,7 +36,7 @@ rHitman.Config = {
     ContractDuration = 3600, -- 1 hour in seconds
     ContractCooldown = 300, -- 5 minutes between contracts
     PaymentOnCompletion = true,
-    RequireEvidence = true,
+    ReturnFailedHitsToPool = true, -- Whether failed hits return to the pool for other hitmen
     MaxActiveContractsPerContractor = 1, -- Maximum number of active contracts one player can place
     MaxActiveContractsPerHitman = 1, -- Maximum number of active contracts one hitman can accept
     CurrencySymbol = "£", -- Currency symbol to use in all displays
@@ -107,12 +107,12 @@ rHitman.Config = {
     -- Hitman jobs (these jobs can complete hits but not place them)
     HitmanJobs = {
         ["medic"] = true,
-        -- ["assassin"] = true,
+        ["assassin"] = true,
     },
 
     -- Teams that cannot use the system at all
     DisallowedTeams = {
-        -- ["TEAM_POLICE"] = true,
+        ["TEAM_POLICE"] = true,
     },
 
     -- Categories that cannot use the system at all

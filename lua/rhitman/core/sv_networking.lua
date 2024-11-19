@@ -3,7 +3,6 @@
     Handles all network communications between server and clients
 ]]--
 
--- Register network strings
 util.AddNetworkString("rHitman_ContractSync")
 util.AddNetworkString("rHitman_PlaceContract")
 util.AddNetworkString("rHitman_AcceptContract")
@@ -72,6 +71,7 @@ end
 -- Validate contract acceptance permissions
 local function CanAcceptContract(ply, contractId)
     if not IsValid(ply) then return false, "Invalid player" end
+    if not rHitman.Util.isHitman(ply) then return false, "You must be a hitman to accept contracts" end
     
     local contract = rHitman.Contracts:GetContract(contractId)
     if not contract then return false, "Invalid contract" end
@@ -129,10 +129,9 @@ net.Receive("rHitman_AcceptContract", function(len, ply)
     local contractId = net.ReadString()
     if not contractId then return end
     
-    -- Validate acceptance
-    local canAccept, error = CanAcceptContract(ply, contractId)
+    local canAccept, reason = CanAcceptContract(ply, contractId)
     if not canAccept then
-        DarkRP.notify(ply, 1, 4, "Cannot accept contract: " .. error)
+        rHitman.Util.notify(ply, reason, NOTIFY_ERROR)
         return
     end
     
@@ -150,12 +149,12 @@ net.Receive("rHitman_AcceptContract", function(len, ply)
     rHitman.Contracts.contracts[contractId] = contract
     
     -- Notify relevant players
-    DarkRP.notify(ply, 0, 4, "Contract accepted successfully!")
+    rHitman.Util.notify(ply, "Contract accepted successfully!", NOTIFY_GENERIC)
     
     -- Notify the contractor
     local contractor = player.GetBySteamID64(contract.contractor)
     if IsValid(contractor) then
-        DarkRP.notify(contractor, 0, 4, ply:Nick() .. " has accepted your contract!")
+        rHitman.Util.notify(contractor, ply:Nick() .. " has accepted your contract!", NOTIFY_GENERIC)
     end
     
     -- Sync the updated contract to all clients
@@ -204,7 +203,7 @@ net.Receive("rHitman_CompleteContract", function(len, ply)
     local success = rHitman:CompleteContract(contractId, ply)
     
     if success then
-        DarkRP.notify(ply, 0, 4, "Contract completed!")
+        rHitman.Util.notify(ply, "Contract completed!", NOTIFY_GENERIC)
         rHitman:SyncContracts()
     end
 end)

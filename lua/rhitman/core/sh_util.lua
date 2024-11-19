@@ -59,31 +59,30 @@ function rHitman.Util.formatTimeLeft(contract)
     return rHitman.Util.formatDuration(timeLeft)
 end
 
--- Check if a player can use the hitman system
+-- Check if a player is a hitman
+function rHitman.Util.isHitman(ply)
+    if not IsValid(ply) then return false end
+    
+    -- Get player's job name
+    local jobName = team.GetName(ply:Team()):lower()
+    
+    -- Check if job is in hitman jobs list
+    return rHitman.Config.HitmanJobs[jobName] == true
+end
+
+-- Check if a player can use the system
 function rHitman.Util.canUseSystem(ply)
     if not IsValid(ply) then return false end
     
-    -- Get team name and category
-    local teamName = team.GetName(ply:Team())
-    local category = DarkRP.getJobByCommand(RPExtraTeams[ply:Team()].command).category
-    if not teamName then return false end
+    -- Get player's job name and category
+    local jobName = team.GetName(ply:Team()):lower()
+    local category = DarkRP and ply:getJobTable().category
     
-    -- Check if player's category is disallowed
-    if rHitman.Config.DisallowedCategories[category] then
-        return false
-    end
+    -- Check if job or category is disallowed
+    if rHitman.Config.DisallowedTeams[jobName] then return false end
+    if category and rHitman.Config.DisallowedCategories[category] then return false end
     
-    -- Check if player's team is disallowed
-    if rHitman.Config.DisallowedTeams[teamName] then
-        return false
-    end
-    
-    -- Check for job overrides
-    if rHitman.Config.JobOverrides[teamName] then
-        return rHitman.Config.JobOverrides[teamName].canUseSystem
-    end
-    
-    return rHitman.Config.DefaultCanUseSystem
+    return true
 end
 
 -- Check if a player can place contracts
@@ -92,27 +91,27 @@ function rHitman.Util.canPlaceContracts(ply)
     
     -- First check if they can use the system at all
     if not rHitman.Util.canUseSystem(ply) then
-        return false
+        return false, "You are not allowed to use the hitman system"
     end
     
     -- Get team name
     local teamName = team.GetName(ply:Team())
     if not teamName then return false end
     
-    -- Check cooldown
-    local lastContract = ply:GetNWFloat("rHitman_LastContract", 0)
-    local cooldownLeft = lastContract + rHitman.Config.ContractCooldown - CurTime()
-    if cooldownLeft > 0 then
-        return false, string.format("Please wait %.0f seconds before placing another contract", cooldownLeft)
-    end
-    
-    -- Check for job overrides
+    -- Check for job overrides first
     if rHitman.Config.JobOverrides[teamName] then
         if not rHitman.Config.JobOverrides[teamName].canPlaceContracts then
             return false, "Your job cannot place contracts"
         end
     elseif not rHitman.Config.DefaultCanPlaceContracts then
         return false, "Your job cannot place contracts"
+    end
+    
+    -- Check cooldown last (only if they have permission)
+    local lastContract = ply:GetNWFloat("rHitman_LastContract", 0)
+    local cooldownLeft = lastContract + rHitman.Config.ContractCooldown - CurTime()
+    if cooldownLeft > 0 then
+        return false, string.format("Please wait %.0f seconds before placing another contract", cooldownLeft)
     end
     
     return true
@@ -127,7 +126,7 @@ function rHitman.Util.canCompleteHits(ply)
     if not jobTable then return false end
     
     -- Check if player is a hitman (this overrides all other restrictions)
-    if rHitman.Config.HitmanJobs[jobTable.command] then
+    if rHitman.Util.isHitman(ply) then
         return true
     end
     
